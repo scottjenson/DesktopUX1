@@ -1,7 +1,13 @@
-// Returns { layout, anchorNodeIds, satNodeIds, bounds }
+const ANCHOR_TITLE_SIZE_RATIO = 0.30;
+const ANCHOR_META_SIZE_RATIO  = 0.19;
+const ANCHOR_TITLE_Y_RATIO    = 0.15;
+const ANCHOR_META1_Y_RATIO    = 0.20;
+const ANCHOR_META2_Y_RATIO    = 0.38;
+
+// Returns { layout, anchorNodeIds, satNodeIds, anchorClusters, bounds }
 function computeAnchorLayout(flat) {
   const { anchors, satellites } = prepareAnchorData(flat);
-  if (anchors.length === 0) return { layout: new Map(), anchorNodeIds: new Set(), satNodeIds: new Set(), bounds: null };
+  if (anchors.length === 0) return { layout: new Map(), anchorNodeIds: new Set(), satNodeIds: new Set(), anchorClusters: [], bounds: null };
 
   const scores = anchors.map(a => a.score);
   const minS = Math.min(...scores), maxS = Math.max(...scores);
@@ -19,7 +25,7 @@ function computeAnchorLayout(flat) {
 
   const buckets = assignSatellitesToAnchors(anchors, satellites);
 
-  // Compute satellite positions and store angle for label placement
+  // Compute satellite positions
   for (const a of anchors) {
     const sats = buckets.get(a.url) || [];
     sats.forEach((sat, i) => {
@@ -38,18 +44,24 @@ function computeAnchorLayout(flat) {
     });
   }
 
-  // Build normUrl → place position map
+  // Build place map — anchors carry extra display data
   const placeMap = new Map();
   for (const a of anchors) {
-    placeMap.set(a.url, { cx: a.cx, cy: a.cy, r: a.r, isAnchor: true,
-      labelText: truncate(placeLabel(a.url, a.page_title), 22) });
+    placeMap.set(a.url, {
+      cx: a.cx, cy: a.cy, r: a.r, isAnchor: true,
+      url: a.url, page_title: a.page_title,
+      visitCount: a.visits.length,
+      totalDwell: a.totalDwell,
+      copyCount: a.copyCount,
+    });
   }
   for (const a of anchors) {
     for (const sat of (buckets.get(a.url) || [])) {
       const onLeft = Math.cos(sat._angle) < 0;
-      placeMap.set(sat.url, { cx: sat.cx, cy: sat.cy, r: sat.r, isAnchor: false,
-        angle: sat._angle, onLeft,
-        labelText: truncate(shortenTitle(sat.page_title), 22) });
+      placeMap.set(sat.url, {
+        cx: sat.cx, cy: sat.cy, r: sat.r, isAnchor: false,
+        onLeft,
+      });
     }
   }
 
@@ -63,25 +75,45 @@ function computeAnchorLayout(flat) {
     const place = placeMap.get(url);
     if (!place) continue;
 
-    let labelX, labelY, labelAnchor, circleClass;
     if (place.isAnchor) {
-      labelX = place.cx;
-      labelY = place.cy - place.r - 7;
-      labelAnchor = 'middle';
-      circleClass = 'anchored';
+      const dwellMin = Math.round(place.totalDwell / 60);
+      layout.set(node.node_id, {
+        cx: place.cx, cy: place.cy, r: place.r, opacity: 1,
+        labelX: place.cx,
+        labelY: place.cy - place.r * ANCHOR_TITLE_Y_RATIO,
+        labelAnchor: 'middle',
+        labelFontSize: place.r * ANCHOR_TITLE_SIZE_RATIO,
+        labelBaseline: 'central',
+        labelText: truncate(placeLabel(place.url, place.page_title), 20),
+        circleClass: 'anchored',
+        metaText: `${place.visitCount} visits · ${dwellMin}m`,
+        metaX: place.cx,
+        metaY: place.cy + place.r * ANCHOR_META1_Y_RATIO,
+        metaFontSize: place.r * ANCHOR_META_SIZE_RATIO,
+        meta2Text: `${place.copyCount} copies`,
+        meta2X: place.cx,
+        meta2Y: place.cy + place.r * ANCHOR_META2_Y_RATIO,
+      });
       anchorNodeIds.add(node.node_id);
     } else {
-      labelX = place.cx + (place.onLeft ? -(place.r + 5) : (place.r + 5));
-      labelY = place.cy + 4;
-      labelAnchor = place.onLeft ? 'end' : 'start';
-      circleClass = 'satellite-node';
+      layout.set(node.node_id, {
+        cx: place.cx, cy: place.cy, r: place.r, opacity: 1,
+        labelX: place.cx, labelY: place.cy,
+        labelAnchor: 'middle',
+        labelFontSize: 10,
+        labelBaseline: 'auto',
+        labelText: '',
+        circleClass: 'satellite-node',
+        metaText: '',
+        metaX: place.cx,
+        metaY: place.cy,
+        metaFontSize: 9,
+        meta2Text: '',
+        meta2X: place.cx,
+        meta2Y: place.cy,
+      });
       satNodeIds.add(node.node_id);
     }
-
-    layout.set(node.node_id, {
-      cx: place.cx, cy: place.cy, r: place.r, opacity: 1,
-      labelX, labelY, labelAnchor, labelText: place.labelText, circleClass,
-    });
   }
 
   const allX = anchors.flatMap(a => [a.cx - a.r - SATELLITE_RING, a.cx + a.r + SATELLITE_RING]);
@@ -93,7 +125,21 @@ function computeAnchorLayout(flat) {
     maxY: Math.max(...allY) + PAD + 20,
   };
 
-  return { layout, anchorNodeIds, satNodeIds, bounds };
+  // Build anchor cluster data for hover interaction
+  const anchorClusters = anchors.map(a => ({
+    cx: a.cx, cy: a.cy, r: a.r,
+    satellites: (buckets.get(a.url) || []).map(sat => {
+      const onLeft = Math.cos(sat._angle) < 0;
+      return {
+        labelX: sat.cx + (onLeft ? -(sat.r + 6) : (sat.r + 6)),
+        labelY: sat.cy + 4,
+        onLeft,
+        label: truncate(placeLabel(sat.url, sat.page_title), 22),
+      };
+    }),
+  }));
+
+  return { layout, anchorNodeIds, satNodeIds, anchorClusters, bounds };
 }
 
 function renderAnchorEdgesAndBg(flat) {
@@ -190,4 +236,48 @@ function renderAnchorEdgesAndBg(flat) {
       edgesG.appendChild(link);
     });
   }
+}
+
+// ── Hover interaction ──────────────────────────────────────────────────────────
+
+function setupAnchorHover(anchorClusters) {
+  const targetsG = document.getElementById('hover-targets');
+  const labelsG = document.getElementById('hover-labels');
+  targetsG.innerHTML = '';
+  labelsG.innerHTML = '';
+
+  for (const cluster of anchorClusters) {
+    const satLabels = cluster.satellites.map(sat => {
+      const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      lbl.setAttribute('class', 'sat-hover-label');
+      lbl.setAttribute('x', sat.labelX);
+      lbl.setAttribute('y', sat.labelY);
+      lbl.setAttribute('text-anchor', sat.onLeft ? 'end' : 'start');
+      lbl.setAttribute('font-size', 9);
+      lbl.textContent = sat.label;
+      lbl.style.opacity = '0';
+      labelsG.appendChild(lbl);
+      return lbl;
+    });
+
+    const hitTarget = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    hitTarget.setAttribute('cx', cluster.cx);
+    hitTarget.setAttribute('cy', cluster.cy);
+    hitTarget.setAttribute('r', cluster.r);
+    hitTarget.setAttribute('fill', 'transparent');
+    hitTarget.setAttribute('stroke', 'none');
+    hitTarget.style.cursor = 'default';
+    hitTarget.addEventListener('mouseenter', () => {
+      for (const lbl of satLabels) lbl.style.opacity = '1';
+    });
+    hitTarget.addEventListener('mouseleave', () => {
+      for (const lbl of satLabels) lbl.style.opacity = '0';
+    });
+    targetsG.appendChild(hitTarget);
+  }
+}
+
+function teardownAnchorHover() {
+  document.getElementById('hover-targets').innerHTML = '';
+  document.getElementById('hover-labels').innerHTML = '';
 }

@@ -1,8 +1,5 @@
 const PAD = 60;
 
-// zoomDependent kept as empty stub; zoom-visibility toggling removed in favour of
-// persistent nodes (the old anchor view's per-element show/hide is not compatible
-// with the shared-element animation model).
 let zoomDependent = [];
 
 let cachedRoot = null;
@@ -20,6 +17,8 @@ function switchToHistory() {
   const prev = currentMode;
   currentMode = 'history';
   _updateViewUI('history');
+
+  if (prev === 'anchor') teardownAnchorHover();
 
   if (prev === null) {
     applyLayout(computeHistoryLayout(HISTORY_DATA));
@@ -41,6 +40,8 @@ function switchToTree() {
   _updateViewUI('tree');
   _ensureTree();
 
+  if (prev === 'anchor') teardownAnchorHover();
+
   if (prev === null) {
     applyLayout(computeTreeLayout(HISTORY_DATA, cachedRoot));
     renderTreeEdges(cachedRoot);
@@ -61,17 +62,19 @@ function switchToAnchor() {
   _ensureTree();
 
   if (prev === null) {
-    const { layout, bounds } = computeAnchorLayout(HISTORY_DATA);
+    const { layout, anchorClusters, bounds } = computeAnchorLayout(HISTORY_DATA);
     applyLayout(layout);
     renderAnchorEdgesAndBg(HISTORY_DATA);
     fitToBounds(bounds);
+    setupAnchorHover(anchorClusters);
     return;
   }
   if (prev === 'tree') {
     transitionTreeToAnchor(HISTORY_DATA);
   } else if (prev === 'history') {
-    const { layout: aLayout, bounds } = computeAnchorLayout(HISTORY_DATA);
-    transitionDirectTo(aLayout, () => renderAnchorEdgesAndBg(HISTORY_DATA), bounds);
+    const { layout: aLayout, anchorClusters, bounds } = computeAnchorLayout(HISTORY_DATA);
+    transitionDirectTo(aLayout, () => renderAnchorEdgesAndBg(HISTORY_DATA), bounds,
+      () => setupAnchorHover(anchorClusters));
   }
 }
 

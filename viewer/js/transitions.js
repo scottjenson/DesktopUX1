@@ -76,12 +76,12 @@ function _targetView(bounds) {
   };
 }
 
-// Snap labels and circleClass from targetLayout immediately, then return a
-// position snapshot to interpolate from. Call this inside onStart.
+// Snap labels, meta, and circleClass from targetLayout immediately, then return
+// a position snapshot to interpolate from. Call this inside onStart.
 function _prepareNodeTween(targetLayout) {
   for (const [id, target] of targetLayout) {
     if (!nodeRegistry.has(id)) continue;
-    const { circle, label } = nodeRegistry.get(id);
+    const { circle, label, meta } = nodeRegistry.get(id);
     if (target.circleClass !== undefined)
       circle.setAttribute('class', 'node-circle' + (target.circleClass ? ' ' + target.circleClass : ''));
     if (target.labelText !== undefined) {
@@ -89,6 +89,23 @@ function _prepareNodeTween(targetLayout) {
       label.setAttribute('y', target.labelY);
       label.setAttribute('text-anchor', target.labelAnchor);
       label.textContent = target.labelText;
+      if (target.labelFontSize != null) label.setAttribute('font-size', target.labelFontSize);
+      if (target.labelBaseline != null) label.setAttribute('dominant-baseline', target.labelBaseline);
+    }
+    if (meta && target.metaText !== undefined) {
+      meta.setAttribute('x', target.metaX ?? 0);
+      meta.setAttribute('y', target.metaY ?? 0);
+      meta.setAttribute('text-anchor', 'middle');
+      meta.textContent = target.metaText;
+      if (target.metaFontSize != null) meta.setAttribute('font-size', target.metaFontSize);
+    }
+    const meta2 = nodeRegistry.get(id)?.meta2;
+    if (meta2 && target.meta2Text !== undefined) {
+      meta2.setAttribute('x', target.meta2X ?? 0);
+      meta2.setAttribute('y', target.meta2Y ?? 0);
+      meta2.setAttribute('text-anchor', 'middle');
+      meta2.textContent = target.meta2Text;
+      if (target.metaFontSize != null) meta2.setAttribute('font-size', target.metaFontSize);
     }
   }
   return _snapshotPositions();
@@ -103,12 +120,14 @@ function _applyNodeFrame(fromSnap, targetLayout, et) {
     const r       = _lerp(from.r,           target.r,           et);
     const opacity = _lerp(from.opacity ?? 1, target.opacity ?? 1, et);
     currentPositions.set(id, { cx, cy, r, opacity });
-    const { circle, label } = nodeRegistry.get(id);
+    const { circle, label, meta, meta2 } = nodeRegistry.get(id);
     circle.setAttribute('cx', cx);
     circle.setAttribute('cy', cy);
     circle.setAttribute('r', r);
     circle.setAttribute('opacity', opacity);
     label.setAttribute('opacity', opacity);
+    if (meta) meta.setAttribute('opacity', opacity);
+    if (meta2) meta2.setAttribute('opacity', opacity);
   }
 }
 
@@ -205,7 +224,7 @@ function transitionToHistory(flat) {
 // ── Tree → Anchor (the important one) ────────────────────────────────────────
 
 function transitionTreeToAnchor(flat) {
-  const { layout: aLayout, anchorNodeIds, bounds } = computeAnchorLayout(flat);
+  const { layout: aLayout, anchorNodeIds, anchorClusters, bounds } = computeAnchorLayout(flat);
   const toView = _targetView(bounds);
 
   // Apply anchor circle styling before animation begins
@@ -261,6 +280,7 @@ function transitionTreeToAnchor(flat) {
     {
       duration: 300,
       onFrame(t, et) { _applyEdgesFrame(0, 1, et); },
+      onComplete() { setupAnchorHover(anchorClusters); },
     },
   ]);
 }
@@ -326,7 +346,7 @@ function transitionAnchorToTree(flat, root) {
 
 // ── Direct jumps (non-adjacent views) ────────────────────────────────────────
 
-function transitionDirectTo(targetLayout, renderEdgesFn, bounds) {
+function transitionDirectTo(targetLayout, renderEdgesFn, bounds, onDone) {
   const toView = _targetView(bounds);
   let fromSnap, fromView, fromEdgeOp;
 
@@ -353,6 +373,7 @@ function transitionDirectTo(targetLayout, renderEdgesFn, bounds) {
           document.getElementById('edges').innerHTML = '';
           document.getElementById('edges').setAttribute('opacity', '1');
           document.getElementById('bg-layer').setAttribute('opacity', '1');
+          if (onDone) onDone();
         }
         fitToBounds(bounds);
       },
@@ -363,6 +384,7 @@ function transitionDirectTo(targetLayout, renderEdgesFn, bounds) {
     phases.push({
       duration: 250,
       onFrame(t, et) { _applyEdgesFrame(0, 1, et); },
+      onComplete() { if (onDone) onDone(); },
     });
   }
 

@@ -1,4 +1,4 @@
-const NODE_W = 180, NODE_H = 44, SLOT_W = 100, LEVEL_H = 90;
+const NODE_W = 180, NODE_H = 44, SLOT_W = 100, LEVEL_H = 30;
 
 function buildTree(flat) {
   const byId = new Map();

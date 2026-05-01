@@ -13,8 +13,17 @@ function computeHistoryLayout(flat) {
       labelX: NODE_R + 10,
       labelY: cy + 4,
       labelAnchor: 'start',
+      labelFontSize: 10,
+      labelBaseline: 'auto',
       labelText,
       circleClass: '',
+      metaText: '',
+      metaX: 0,
+      metaY: cy,
+      metaFontSize: 9,
+      meta2Text: '',
+      meta2X: 0,
+      meta2Y: cy,
     });
   });
   return layout;

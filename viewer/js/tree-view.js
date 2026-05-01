@@ -11,8 +11,17 @@ function computeTreeLayout(flat, root) {
       labelX: node.x + NODE_R + 10,
       labelY: node.y + 4,
       labelAnchor: 'start',
-      labelText: truncate(shortenTitle(node.page_title), 28),
+      labelFontSize: 10,
+      labelBaseline: 'auto',
+      labelText: truncate(placeLabel(normUrl(node.url), node.page_title), 28),
       circleClass: isRoot ? 'root-node' : '',
+      metaText: '',
+      metaX: node.x,
+      metaY: node.y,
+      metaFontSize: 9,
+      meta2Text: '',
+      meta2X: node.x,
+      meta2Y: node.y,
     });
   }
   return layout;
