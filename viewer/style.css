@@ -1,0 +1,162 @@
+:root {
+  --bg: #0e0f10;
+  --bg-grid: #15171a;
+  --ink: #e6e4dd;
+  --ink-dim: #8a8780;
+  --ink-faint: #4a4842;
+  --rule: #2a2c30;
+  --node-bg: #16181b;
+  --node-border: #3a3d42;
+  --edge: #3a3d42;
+  --accent: #d4b27a;
+  --carrier: #6fa8c4;
+  --interrupt: #3a2a2a;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12px;
+  overflow: hidden;
+}
+
+.canvas-bg {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--bg-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-position: -1px -1px;
+  pointer-events: none;
+}
+
+header {
+  position: fixed; top: 0; left: 0; right: 0;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--rule);
+  background: rgba(14, 15, 16, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex; align-items: baseline; gap: 24px;
+  z-index: 10;
+}
+header .title { font-family: 'Fraunces', Georgia, serif; font-style: italic; font-size: 16px; }
+header .sub { color: var(--ink-dim); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
+header .sub .active { color: var(--accent); }
+header .meta { margin-left: auto; color: var(--ink-dim); font-size: 11px; }
+header .meta span { color: var(--ink); }
+
+footer {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  padding: 10px 20px;
+  border-top: 1px solid var(--rule);
+  background: rgba(14, 15, 16, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex; gap: 24px;
+  color: var(--ink-dim); font-size: 11px;
+  z-index: 10;
+}
+footer kbd {
+  font-family: inherit;
+  background: var(--node-bg);
+  border: 1px solid var(--rule);
+  padding: 1px 5px; border-radius: 2px;
+  color: var(--ink); font-size: 10px;
+}
+footer .right { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+#stage { position: absolute; inset: 0; cursor: grab; }
+#stage.dragging { cursor: grabbing; }
+svg { display: block; width: 100%; height: 100%; }
+
+/* ── Unified node component ─────────────────────────────────────────────── */
+.node-circle {
+  fill: var(--node-bg);
+  stroke: var(--node-border);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+/* Root node in tree view */
+.node-circle.root-node {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+/* Anchor places in anchor view */
+.node-circle.anchored {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+/* Satellite places in anchor view */
+.node-circle.satellite-node {
+  fill: var(--ink-faint);
+  stroke: none;
+}
+
+.node-label {
+  fill: var(--ink-dim);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  pointer-events: none;
+}
+
+/* ── Edges ──────────────────────────────────────────────────────────────── */
+.edge { fill: none; stroke: var(--edge); stroke-width: 1; vector-effect: non-scaling-stroke; }
+
+.satellite-link {
+  stroke: var(--ink-faint);
+  stroke-width: 0.5;
+  fill: none;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.5;
+}
+
+.anchor-edge {
+  fill: none;
+  stroke: var(--accent);
+  stroke-opacity: 0.35;
+  vector-effect: non-scaling-stroke;
+}
+.anchor-edge.carrier {
+  stroke: var(--carrier);
+  stroke-opacity: 0.65;
+}
+
+.interrupt-band { fill: var(--interrupt); opacity: 0.35; }
+.interrupt-label {
+  fill: var(--ink-dim);
+  font-family: 'JetBrains Mono', monospace;
+  text-anchor: middle;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ── View switcher ──────────────────────────────────────────────────────── */
+.view-switcher {
+  display: flex;
+  gap: 2px;
+  background: var(--node-bg);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 2px;
+}
+.view-btn {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  background: none;
+  border: none;
+  color: var(--ink-dim);
+  padding: 3px 10px;
+  border-radius: 2px;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+}
+.view-btn:hover { color: var(--ink); }
+.view-btn.active {
+  background: var(--rule);
+  color: var(--accent);
+}

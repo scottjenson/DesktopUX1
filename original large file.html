@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>history tree — v3</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,400;9..144,500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0e0f10;
+      --bg-grid: #15171a;
+      --ink: #e6e4dd;
+      --ink-dim: #8a8780;
+      --ink-faint: #4a4842;
+      --rule: #2a2c30;
+      --node-bg: #16181b;
+      --node-border: #3a3d42;
+      --edge: #3a3d42;
+      --accent: #d4b27a;
+      --carrier: #6fa8c4;
+      --interrupt: #3a2a2a;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 12px;
+      overflow: hidden;
+    }
+
+    .canvas-bg {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--bg-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
+      background-size: 40px 40px;
+      background-position: -1px -1px;
+      pointer-events: none;
+    }
+
+    header {
+      position: fixed; top: 0; left: 0; right: 0;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--rule);
+      background: rgba(14, 15, 16, 0.85);
+      backdrop-filter: blur(8px);
+      display: flex; align-items: baseline; gap: 24px;
+      z-index: 10;
+    }
+    header .title { font-family: 'Fraunces', Georgia, serif; font-style: italic; font-size: 16px; }
+    header .sub { color: var(--ink-dim); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
+    header .sub .active { color: var(--accent); }
+    header .meta { margin-left: auto; color: var(--ink-dim); font-size: 11px; }
+    header .meta span { color: var(--ink); }
+
+    footer {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      padding: 10px 20px;
+      border-top: 1px solid var(--rule);
+      background: rgba(14, 15, 16, 0.85);
+      backdrop-filter: blur(8px);
+      display: flex; gap: 24px;
+      color: var(--ink-dim); font-size: 11px;
+      z-index: 10;
+    }
+    footer kbd {
+      font-family: inherit;
+      background: var(--node-bg);
+      border: 1px solid var(--rule);
+      padding: 1px 5px; border-radius: 2px;
+      color: var(--ink); font-size: 10px;
+    }
+    footer .right { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+    #stage { position: absolute; inset: 0; cursor: grab; }
+    #stage.dragging { cursor: grabbing; }
+    svg { display: block; width: 100%; height: 100%; }
+
+    /* tree view */
+    .edge { fill: none; stroke: var(--edge); stroke-width: 1; vector-effect: non-scaling-stroke; }
+    .node rect { fill: var(--node-bg); stroke: var(--node-border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+    .node text { fill: var(--ink); font-family: 'JetBrains Mono', monospace; font-size: 10px; pointer-events: none; }
+    .node .id { fill: var(--ink-faint); font-size: 9px; }
+    .node .dot { fill: var(--accent); }
+    .node.root rect { stroke: var(--accent); }
+
+    /* anchor view */
+    .anchor-circle {
+      fill: var(--node-bg);
+      stroke: var(--accent);
+      stroke-width: 1.5;
+      vector-effect: non-scaling-stroke;
+    }
+    .anchor-label {
+      fill: var(--ink);
+      font-family: 'JetBrains Mono', monospace;
+      text-anchor: middle;
+      pointer-events: none;
+      font-weight: 500;
+    }
+    .anchor-meta {
+      fill: var(--ink-dim);
+      font-family: 'JetBrains Mono', monospace;
+      text-anchor: middle;
+      pointer-events: none;
+    }
+
+    .satellite { fill: var(--ink-faint); stroke: none; }
+    .satellite.has-copy { fill: var(--carrier); }
+    .satellite-label { fill: var(--ink-dim); font-family: 'JetBrains Mono', monospace; pointer-events: none; }
+    .satellite-link {
+      stroke: var(--ink-faint);
+      stroke-width: 0.5;
+      fill: none;
+      vector-effect: non-scaling-stroke;
+      opacity: 0.5;
+    }
+
+    .anchor-edge {
+      fill: none;
+      stroke: var(--accent);
+      stroke-opacity: 0.35;
+      vector-effect: non-scaling-stroke;
+    }
+    .anchor-edge.carrier {
+      stroke: var(--carrier);
+      stroke-opacity: 0.65;
+    }
+
+    .interrupt-band { fill: var(--interrupt); opacity: 0.35; }
+    .interrupt-label {
+      fill: var(--ink-dim);
+      font-family: 'JetBrains Mono', monospace;
+      text-anchor: middle;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .hidden-by-zoom { display: none; }
+  </style>
+</head>
+<body>
+
+<div class="canvas-bg"></div>
+
+<header>
+  <span class="title">history tree</span>
+  <span class="sub">view: <span id="view-name" class="active">chronological</span></span>
+  <span class="meta"><span id="node-count">—</span> nodes</span>
+</header>
+
+<div id="stage">
+  <svg id="svg" xmlns="http://www.w3.org/2000/svg">
+    <g id="viewport">
+      <g id="bg-layer"></g>
+      <g id="edges"></g>
+      <g id="nodes"></g>
+    </g>
+  </svg>
+</div>
+
+<footer>
+  <span>drag to pan</span>
+  <span>scroll to zoom</span>
+  <span><kbd>0</kbd> chronological tree</span>
+  <span><kbd>1</kbd> anchor constellation</span>
+  <span class="right">zoom <span id="zoom-readout">1.00×</span></span>
+</footer>
+
+<script>
+  const DATA = [{"node_id": "node_01", "parent_node_id": null, "url": "https://google.com/search?q=best+mid-drive+commuter+ebike", "page_title": "best mid-drive commuter ebike - Google Search", "intent_label": "Formulating initial research query", "transition_type": "google_search", "abandonment_state": "deep_read", "active_signals": {"max_scroll_depth_percent": 45, "dwell_time_seconds": 120, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 3, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_02", "parent_node_id": "node_01", "url": "https://bikeradar.com/top-10-ebikes", "page_title": "Top 10 Commuter E-bikes", "intent_label": "Scanning listicle for initial models", "transition_type": "clicked_link", "abandonment_state": "immediate_bounce", "active_signals": {"max_scroll_depth_percent": 15, "dwell_time_seconds": 8, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 3, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_03", "parent_node_id": "node_01", "url": "https://electrek.co/best-commuter-ebikes/", "page_title": "Electrek's Best Commuters", "intent_label": "Seeking secondary expert opinions", "transition_type": "opened_in_new_tab", "abandonment_state": "immediate_bounce", "active_signals": {"max_scroll_depth_percent": 20, "dwell_time_seconds": 12, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 3, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_04", "parent_node_id": "node_01", "url": "https://reddit.com/r/ebikes/comments/commuter_recs", "page_title": "Commuter recommendations? : r/ebikes", "intent_label": "Sourcing anecdotal user reviews", "transition_type": "opened_in_new_tab", "abandonment_state": "deep_read", "active_signals": {"max_scroll_depth_percent": 85, "dwell_time_seconds": 340, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 2, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_05", "parent_node_id": "node_04", "url": "https://reddit.com/user/ebikeguru", "page_title": "ebikeguru - User Profile", "intent_label": "Verifying commenter credibility", "transition_type": "clicked_link", "abandonment_state": "immediate_bounce", "active_signals": {"max_scroll_depth_percent": 10, "dwell_time_seconds": 5, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 3, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_06", "parent_node_id": "node_04", "url": "https://reddit.com/r/ebikes/comments/bosch_vs_yamaha", "page_title": "Bosch vs Yamaha motors", "intent_label": "Comparing motor reliability", "transition_type": "opened_in_new_tab", "abandonment_state": "deep_read", "active_signals": {"max_scroll_depth_percent": 90, "dwell_time_seconds": 450, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 2, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_07", "parent_node_id": "node_06", "url": "https://bosch-ebike.com/en/", "page_title": "Bosch eBike Systems", "intent_label": "Investigating manufacturer claims", "transition_type": "clicked_link", "abandonment_state": "immediate_bounce", "active_signals": {"max_scroll_depth_percent": 5, "dwell_time_seconds": 15, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 3, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_08", "parent_node_id": "node_06", "url": "https://youtube.com/watch?v=bosch_teardown", "page_title": "Bosch CX Motor Teardown", "intent_label": "Watching technical breakdown", "transition_type": "opened_in_new_tab", "abandonment_state": "deep_read", "active_signals": {"max_scroll_depth_percent": 10, "dwell_time_seconds": 620, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 2, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_09", "parent_node_id": "node_08", "url": "https://youtube.com/watch?v=yamaha_review", "page_title": "Yamaha PW-ST Review", "intent_label": "Watching alternative review", "transition_type": "clicked_link", "abandonment_state": "interrupted", "active_signals": {"max_scroll_depth_percent": 10, "dwell_time_seconds": 45, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 3, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_10", "parent_node_id": "node_01", "url": "https://google.com/search?q=Specialized+Turbo+Vado", "page_title": "Specialized Turbo Vado - Google Search", "intent_label": "Pivoting search to specific model", "transition_type": "google_search", "abandonment_state": "deep_read", "active_signals": {"max_scroll_depth_percent": 60, "dwell_time_seconds": 40, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 3, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_11", "parent_node_id": "node_10", "url": "https://specialized.com/us/en/turbo-vado-4", "page_title": "Turbo Vado 4.0 | Specialized", "intent_label": "Evaluating specific bike geometry", "transition_type": "clicked_link", "abandonment_state": "deep_read", "active_signals": {"max_scroll_depth_percent": 100, "dwell_time_seconds": 310, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 1, "render_mode": "interactive_dom", "texture_state": "static_snapshot", "is_anchored": true}, {"node_id": "node_12", "parent_node_id": "node_11", "url": "https://specialized.com/us/en/store-locator", "page_title": "Find a Retailer", "intent_label": "Checking local availability", "transition_type": "clicked_link", "abandonment_state": "immediate_bounce", "active_signals": {"max_scroll_depth_percent": 0, "dwell_time_seconds": 12, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 3, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_13", "parent_node_id": "node_11", "url": "https://reddit.com/r/specialized/comments/vado_issues", "page_title": "Vado 4.0 long term reliability?", "intent_label": "Sourcing model-specific complaints", "transition_type": "opened_in_new_tab", "abandonment_state": "deep_read", "active_signals": {"max_scroll_depth_percent": 75, "dwell_time_seconds": 180, "clipboard_copy_event": false, "selection_evaporated": true}, "granularity_tier": 2, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_14", "parent_node_id": "node_10", "url": "https://youtube.com/watch?v=vado_4_review", "page_title": "Specialized Turbo Vado 4.0 Review", "intent_label": "Watching visual review of Vado", "transition_type": "opened_in_new_tab", "abandonment_state": "deep_read", "active_signals": {"max_scroll_depth_percent": 10, "dwell_time_seconds": 540, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 2, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_15", "parent_node_id": "node_01", "url": "https://google.com/search?q=Trek+Allant+7", "page_title": "Trek Allant+ 7 - Google Search", "intent_label": "Pivoting search to competitor model", "transition_type": "google_search", "abandonment_state": "deep_read", "active_signals": {"max_scroll_depth_percent": 50, "dwell_time_seconds": 35, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 3, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_16", "parent_node_id": "node_15", "url": "https://trekbikes.com/us/en_US/allant-plus-7", "page_title": "Allant+ 7 | Trek Bikes", "intent_label": "Evaluating Trek spec sheet", "transition_type": "clicked_link", "abandonment_state": "deep_read", "active_signals": {"max_scroll_depth_percent": 95, "dwell_time_seconds": 420, "clipboard_copy_event": true, "selection_evaporated": false}, "granularity_tier": 1, "render_mode": "interactive_dom", "texture_state": "static_snapshot", "is_anchored": true}, {"node_id": "node_17", "parent_node_id": "node_16", "url": "https://trekbikes.com/us/en_US/sizing", "page_title": "Bike Sizing Guide", "intent_label": "Checking size chart", "transition_type": "opened_in_new_tab", "abandonment_state": "immediate_bounce", "active_signals": {"max_scroll_depth_percent": 30, "dwell_time_seconds": 25, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 3, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_18", "parent_node_id": "node_16", "url": "https://electricbikereview.com/trek/allant-plus-7/", "page_title": "Trek Allant+ 7 Review | EBR", "intent_label": "Reading third-party technical review", "transition_type": "opened_in_new_tab", "abandonment_state": "deep_read", "active_signals": {"max_scroll_depth_percent": 100, "dwell_time_seconds": 380, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 2, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_19", "parent_node_id": "node_18", "url": "https://electricbikereview.com/forums/", "page_title": "EBR Forums", "intent_label": "Browsing forum index", "transition_type": "clicked_link", "abandonment_state": "immediate_bounce", "active_signals": {"max_scroll_depth_percent": 10, "dwell_time_seconds": 15, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 3, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_20", "parent_node_id": "node_15", "url": "https://google.com/search?q=Gazelle+Ultimate+C8", "page_title": "Gazelle Ultimate C8 - Google Search", "intent_label": "Pivoting search to Dutch model", "transition_type": "google_search", "abandonment_state": "deep_read", "active_signals": {"max_scroll_depth_percent": 45, "dwell_time_seconds": 25, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 3, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_21", "parent_node_id": "node_20", "url": "https://gazellebikes.com/en-us/ultimate-c8", "page_title": "Ultimate C8 HMB | Gazelle", "intent_label": "Evaluating Gazelle spec sheet", "transition_type": "clicked_link", "abandonment_state": "deep_read", "active_signals": {"max_scroll_depth_percent": 88, "dwell_time_seconds": 290, "clipboard_copy_event": true, "selection_evaporated": false}, "granularity_tier": 1, "render_mode": "interactive_dom", "texture_state": "static_snapshot", "is_anchored": true}, {"node_id": "node_22", "parent_node_id": "node_21", "url": "https://gazellebikes.com/en-us/belt-drive", "page_title": "Why Belt Drive?", "intent_label": "Learning about belt drive vs chain", "transition_type": "opened_in_new_tab", "abandonment_state": "deep_read", "active_signals": {"max_scroll_depth_percent": 60, "dwell_time_seconds": 140, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 2, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_23", "parent_node_id": "node_20", "url": "https://youtube.com/watch?v=gazelle_c8", "page_title": "Gazelle Ultimate C8 Commute Test", "intent_label": "Watching commute test footage", "transition_type": "opened_in_new_tab", "abandonment_state": "interrupted", "active_signals": {"max_scroll_depth_percent": 5, "dwell_time_seconds": 80, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 3, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_24", "parent_node_id": "node_23", "url": "slack://app", "page_title": "Slack - Work Workspace", "intent_label": "Context switch via external interruption", "transition_type": "app_switch", "abandonment_state": "interruption_gap", "active_signals": {"max_scroll_depth_percent": 100, "dwell_time_seconds": 900, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 3, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_25", "parent_node_id": "node_24", "url": "https://gazellebikes.com/en-us/ultimate-c8", "page_title": "Ultimate C8 HMB | Gazelle", "intent_label": "Re-orientation: Finding place after interruption", "transition_type": "tab_switch", "abandonment_state": "immediate_bounce", "active_signals": {"max_scroll_depth_percent": 88, "dwell_time_seconds": 4, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 1, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_26", "parent_node_id": "node_25", "url": "https://trekbikes.com/us/en_US/allant-plus-7", "page_title": "Allant+ 7 | Trek Bikes", "intent_label": "Re-orientation: Cycling tabs", "transition_type": "tab_switch", "abandonment_state": "immediate_bounce", "active_signals": {"max_scroll_depth_percent": 95, "dwell_time_seconds": 3, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 1, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_27", "parent_node_id": "node_26", "url": "https://specialized.com/us/en/turbo-vado-4", "page_title": "Turbo Vado 4.0 | Specialized", "intent_label": "Re-orientation: Cycling tabs", "transition_type": "tab_switch", "abandonment_state": "deep_read", "active_signals": {"max_scroll_depth_percent": 100, "dwell_time_seconds": 60, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 1, "render_mode": "interactive_dom", "texture_state": "static_snapshot", "is_anchored": true}, {"node_id": "node_28", "parent_node_id": "node_27", "url": "https://reddit.com/r/ebikes/comments/vado_vs_allant", "page_title": "Vado 4.0 vs Allant+ 7?", "intent_label": "Searching direct comparison", "transition_type": "opened_in_new_tab", "abandonment_state": "deep_read", "active_signals": {"max_scroll_depth_percent": 100, "dwell_time_seconds": 210, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 2, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_29", "parent_node_id": "node_28", "url": "https://reddit.com/user/commuter_guy", "page_title": "commuter_guy - User Profile", "intent_label": "Checking author history", "transition_type": "clicked_link", "abandonment_state": "immediate_bounce", "active_signals": {"max_scroll_depth_percent": 20, "dwell_time_seconds": 8, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 3, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_30", "parent_node_id": "node_28", "url": "https://electricbikereview.com/compare", "page_title": "EBR Comparison Tool", "intent_label": "Attempting automated comparison", "transition_type": "opened_in_new_tab", "abandonment_state": "interrupted", "active_signals": {"max_scroll_depth_percent": 15, "dwell_time_seconds": 45, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 3, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_31", "parent_node_id": "node_30", "url": "https://electricbikereview.com/compare/error", "page_title": "Models not found", "intent_label": "Encountering dead end in tool", "transition_type": "form_submit", "abandonment_state": "immediate_bounce", "active_signals": {"max_scroll_depth_percent": 0, "dwell_time_seconds": 5, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 3, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_32", "parent_node_id": "node_27", "url": "https://specialized.com/us/en/turbo-vado-4/geometry", "page_title": "Vado Geometry", "intent_label": "Reviewing bike sizing metrics", "transition_type": "clicked_link", "abandonment_state": "deep_read", "active_signals": {"max_scroll_depth_percent": 80, "dwell_time_seconds": 60, "clipboard_copy_event": false, "selection_evaporated": true}, "granularity_tier": 2, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_33", "parent_node_id": "node_27", "url": "https://trekbikes.com/us/en_US/allant-plus-7", "page_title": "Allant+ 7 | Trek Bikes", "intent_label": "Re-visiting to compare specs manually", "transition_type": "tab_switch", "abandonment_state": "deep_read", "active_signals": {"max_scroll_depth_percent": 95, "dwell_time_seconds": 45, "clipboard_copy_event": true, "selection_evaporated": false}, "granularity_tier": 1, "render_mode": "interactive_dom", "texture_state": "static_snapshot", "is_anchored": true}, {"node_id": "node_34", "parent_node_id": "node_33", "url": "https://keep.google.com/", "page_title": "Google Keep", "intent_label": "Initiating manual integration space", "transition_type": "opened_app", "abandonment_state": "deep_read", "active_signals": {"max_scroll_depth_percent": 0, "dwell_time_seconds": 25, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 1, "render_mode": "interactive_dom", "texture_state": "live_canvas", "is_anchored": true}, {"node_id": "node_35", "parent_node_id": "node_34", "url": "https://keep.google.com/u/0/#NOTE/ebike", "page_title": "E-Bike Shortlist", "intent_label": "Creating destination note", "transition_type": "in_app_action", "abandonment_state": "manual_integration", "active_signals": {"max_scroll_depth_percent": 0, "dwell_time_seconds": 40, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 1, "render_mode": "interactive_dom", "texture_state": "live_canvas", "is_anchored": true}, {"node_id": "node_36", "parent_node_id": "node_35", "url": "https://trekbikes.com/us/en_US/allant-plus-7", "page_title": "Allant+ 7 | Trek Bikes", "intent_label": "Sourcing data for destination-blind paste", "transition_type": "tab_switch", "abandonment_state": "manual_integration", "active_signals": {"max_scroll_depth_percent": 95, "dwell_time_seconds": 15, "clipboard_copy_event": true, "selection_evaporated": false}, "granularity_tier": 1, "render_mode": "interactive_dom", "texture_state": "static_snapshot", "is_anchored": true}, {"node_id": "node_37", "parent_node_id": "node_36", "url": "https://keep.google.com/u/0/#NOTE/ebike", "page_title": "E-Bike Shortlist", "intent_label": "Executing destination-blind paste", "transition_type": "tab_switch", "abandonment_state": "manual_integration", "active_signals": {"max_scroll_depth_percent": 0, "dwell_time_seconds": 20, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 1, "render_mode": "interactive_dom", "texture_state": "live_canvas", "is_anchored": true}, {"node_id": "node_38", "parent_node_id": "node_37", "url": "https://specialized.com/us/en/turbo-vado-4", "page_title": "Turbo Vado 4.0 | Specialized", "intent_label": "Sourcing data for destination-blind paste", "transition_type": "tab_switch", "abandonment_state": "manual_integration", "active_signals": {"max_scroll_depth_percent": 100, "dwell_time_seconds": 22, "clipboard_copy_event": true, "selection_evaporated": true}, "granularity_tier": 1, "render_mode": "interactive_dom", "texture_state": "static_snapshot", "is_anchored": true}, {"node_id": "node_39", "parent_node_id": "node_38", "url": "https://keep.google.com/u/0/#NOTE/ebike", "page_title": "E-Bike Shortlist", "intent_label": "Executing destination-blind paste", "transition_type": "tab_switch", "abandonment_state": "manual_integration", "active_signals": {"max_scroll_depth_percent": 0, "dwell_time_seconds": 18, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 1, "render_mode": "interactive_dom", "texture_state": "live_canvas", "is_anchored": true}, {"node_id": "node_40", "parent_node_id": "node_39", "url": "https://gazellebikes.com/en-us/ultimate-c8", "page_title": "Ultimate C8 HMB | Gazelle", "intent_label": "Sourcing data for destination-blind paste", "transition_type": "tab_switch", "abandonment_state": "manual_integration", "active_signals": {"max_scroll_depth_percent": 88, "dwell_time_seconds": 25, "clipboard_copy_event": true, "selection_evaporated": false}, "granularity_tier": 1, "render_mode": "interactive_dom", "texture_state": "static_snapshot", "is_anchored": true}, {"node_id": "node_41", "parent_node_id": "node_40", "url": "https://keep.google.com/u/0/#NOTE/ebike", "page_title": "E-Bike Shortlist", "intent_label": "Executing destination-blind paste", "transition_type": "tab_switch", "abandonment_state": "manual_integration", "active_signals": {"max_scroll_depth_percent": 0, "dwell_time_seconds": 35, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 1, "render_mode": "interactive_dom", "texture_state": "live_canvas", "is_anchored": true}, {"node_id": "node_42", "parent_node_id": "node_41", "url": "https://youtube.com/watch?v=ebike_locks", "page_title": "Best Ebike Locks 2026", "intent_label": "Starting tangent research", "transition_type": "opened_in_new_tab", "abandonment_state": "deep_read", "active_signals": {"max_scroll_depth_percent": 10, "dwell_time_seconds": 180, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 2, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_43", "parent_node_id": "node_42", "url": "https://amazon.com/kryptonite-fahgettaboudit", "page_title": "Kryptonite New York Lock", "intent_label": "Pricing tangent accessory", "transition_type": "clicked_link", "abandonment_state": "immediate_bounce", "active_signals": {"max_scroll_depth_percent": 40, "dwell_time_seconds": 12, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 3, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_44", "parent_node_id": "node_41", "url": "https://reddit.com/r/ebikes/comments/locks", "page_title": "Lock recommendations?", "intent_label": "Sourcing tangent reviews", "transition_type": "opened_in_new_tab", "abandonment_state": "immediate_bounce", "active_signals": {"max_scroll_depth_percent": 15, "dwell_time_seconds": 10, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 3, "render_mode": "spatial_mesh", "texture_state": "static_snapshot", "is_anchored": false}, {"node_id": "node_45", "parent_node_id": "node_41", "url": "https://keep.google.com/u/0/#NOTE/ebike", "page_title": "E-Bike Shortlist", "intent_label": "Re-focusing on core integration task", "transition_type": "tab_switch", "abandonment_state": "manual_integration", "active_signals": {"max_scroll_depth_percent": 0, "dwell_time_seconds": 45, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 1, "render_mode": "interactive_dom", "texture_state": "live_canvas", "is_anchored": true}, {"node_id": "node_46", "parent_node_id": "node_45", "url": "https://trekbikes.com/us/en_US/allant-plus-7", "page_title": "Allant+ 7 | Trek Bikes", "intent_label": "Sourcing final weight spec", "transition_type": "tab_switch", "abandonment_state": "manual_integration", "active_signals": {"max_scroll_depth_percent": 95, "dwell_time_seconds": 12, "clipboard_copy_event": true, "selection_evaporated": false}, "granularity_tier": 1, "render_mode": "interactive_dom", "texture_state": "static_snapshot", "is_anchored": true}, {"node_id": "node_47", "parent_node_id": "node_46", "url": "https://keep.google.com/u/0/#NOTE/ebike", "page_title": "E-Bike Shortlist", "intent_label": "Executing destination-blind paste", "transition_type": "tab_switch", "abandonment_state": "manual_integration", "active_signals": {"max_scroll_depth_percent": 0, "dwell_time_seconds": 15, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 1, "render_mode": "interactive_dom", "texture_state": "live_canvas", "is_anchored": true}, {"node_id": "node_48", "parent_node_id": "node_47", "url": "https://specialized.com/us/en/turbo-vado-4", "page_title": "Turbo Vado 4.0 | Specialized", "intent_label": "Sourcing final weight spec", "transition_type": "tab_switch", "abandonment_state": "manual_integration", "active_signals": {"max_scroll_depth_percent": 100, "dwell_time_seconds": 14, "clipboard_copy_event": true, "selection_evaporated": false}, "granularity_tier": 1, "render_mode": "interactive_dom", "texture_state": "static_snapshot", "is_anchored": true}, {"node_id": "node_49", "parent_node_id": "node_48", "url": "https://keep.google.com/u/0/#NOTE/ebike", "page_title": "E-Bike Shortlist", "intent_label": "Executing destination-blind paste", "transition_type": "tab_switch", "abandonment_state": "manual_integration", "active_signals": {"max_scroll_depth_percent": 0, "dwell_time_seconds": 80, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 1, "render_mode": "interactive_dom", "texture_state": "live_canvas", "is_anchored": true}, {"node_id": "node_50", "parent_node_id": "node_49", "url": "https://keep.google.com/u/0/#NOTE/ebike", "page_title": "E-Bike Shortlist", "intent_label": "Finalizing output artifact", "transition_type": "in_app_action", "abandonment_state": "deep_read", "active_signals": {"max_scroll_depth_percent": 100, "dwell_time_seconds": 120, "clipboard_copy_event": false, "selection_evaporated": false}, "granularity_tier": 1, "render_mode": "interactive_dom", "texture_state": "live_canvas", "is_anchored": true}];
+
+  const PAD = 60;
+  const NODE_W = 180, NODE_H = 44, SLOT_W = 200, LEVEL_H = 90;
+
+  const ANCHOR_BAND_Y = 0;
+  const ANCHOR_GAP_X = 280;
+  const VERTICAL_RANGE = 220;
+  const SATELLITE_RING = 95;
+  const SATELLITE_R = 4;
+
+  const MIN_ANCHOR_LABEL_PX = 60;
+  const MIN_ANCHOR_META_PX = 80;
+  const MIN_SAT_LABEL_PX = 70;
+  const MIN_SAT_DOT_PX = 1.5;
+
+  function normUrl(u) {
+    if (!u) return u;
+    if (u.indexOf('keep.google.com') !== -1) return 'KEEP';
+    return u;
+  }
+
+  function placeLabel(url, pageTitle) {
+    if (url === 'KEEP') return 'Keep';
+    return shortenTitle(pageTitle);
+  }
+
+  function shortenTitle(s) {
+    if (!s) return '';
+    return s.replace(/\s*[\|\-–—]\s*[^|\-–—]+$/, '');
+  }
+
+  function truncate(s, n) {
+    if (!s) return '';
+    if (s.length <= n) return s;
+    return s.slice(0, n - 1) + '…';
+  }
+
+  function buildTree(flat) {
+    const byId = new Map();
+    flat.forEach(n => byId.set(n.node_id, { ...n, children: [] }));
+    let root = null;
+    for (const node of byId.values()) {
+      if (node.parent_node_id == null) root = node;
+      else {
+        const parent = byId.get(node.parent_node_id);
+        if (parent) parent.children.push(node);
+      }
+    }
+    return root;
+  }
+
+  function flatten(node, out = []) {
+    out.push(node);
+    for (const c of node.children) flatten(c, out);
+    return out;
+  }
+
+  function countLeaves(node) {
+    if (node.children.length === 0) { node._leaves = 1; return 1; }
+    let total = 0;
+    for (const c of node.children) total += countLeaves(c);
+    node._leaves = total;
+    return total;
+  }
+
+  function treeLayout(node, depth, xStart) {
+    node.y = depth * LEVEL_H;
+    if (node.children.length === 0) {
+      node.x = xStart * SLOT_W + SLOT_W / 2;
+      return;
+    }
+    let cursor = xStart;
+    for (const c of node.children) {
+      treeLayout(c, depth + 1, cursor);
+      cursor += c._leaves;
+    }
+    const first = node.children[0];
+    const last = node.children[node.children.length - 1];
+    node.x = (first.x + last.x) / 2;
+  }
+
+  function prepareAnchorData(flat) {
+    const byUrl = new Map();
+    flat.forEach((node, idx) => {
+      const url = normUrl(node.url);
+      if (!byUrl.has(url)) {
+        byUrl.set(url, {
+          url,
+          page_title: node.page_title,
+          visits: [],
+          visitIndices: [],
+          totalDwell: 0,
+          copyCount: 0,
+          isAnchored: false,
+          firstIdx: idx,
+          hasCopy: false,
+        });
+      }
+      const place = byUrl.get(url);
+      place.visits.push(node);
+      place.visitIndices.push(idx);
+      place.totalDwell += node.active_signals.dwell_time_seconds;
+      if (node.is_anchored) place.isAnchored = true;
+      if (node.active_signals.clipboard_copy_event) {
+        place.copyCount++;
+        place.hasCopy = true;
+      }
+    });
+
+    // ---- inferred pastes ----
+    // TODO: revisit when JSON capture format includes explicit paste events.
+    // Inference rule: each copy event lands on the next-visited Keep instance.
+    // (In this dataset every copy resolves cleanly to Keep. With multiple paste
+    // destinations this rule would need to be revised — better to capture pastes.)
+    const pastesReceived = {};
+    for (const [u] of byUrl) pastesReceived[u] = 0;
+
+    flat.forEach((node, i) => {
+      if (!node.active_signals.clipboard_copy_event) return;
+      const sourceUrl = normUrl(node.url);
+      for (let j = i + 1; j < flat.length; j++) {
+        const candidateUrl = normUrl(flat[j].url);
+        if (candidateUrl === 'KEEP' && candidateUrl !== sourceUrl) {
+          pastesReceived[candidateUrl] = (pastesReceived[candidateUrl] || 0) + 1;
+          break;
+        }
+      }
+    });
+
+    for (const [u, place] of byUrl) {
+      place.pastesReceived = pastesReceived[u] || 0;
+    }
+
+    const anchors = [];
+    const satellites = [];
+    for (const place of byUrl.values()) {
+      if (place.isAnchored) anchors.push(place);
+      else satellites.push(place);
+    }
+    anchors.sort((a, b) => a.firstIdx - b.firstIdx);
+
+    // score = sqrt(dwell) + 8*visits + 12*copies + 8*pastes_received
+    anchors.forEach(a => {
+      a.score = Math.sqrt(a.totalDwell) + 8 * a.visits.length + 12 * a.copyCount + 8 * a.pastesReceived;
+    });
+
+    // center of mass for vertical positioning
+    const total = flat.length;
+    anchors.forEach(a => {
+      const sum = a.visitIndices.reduce((s, i) => s + i, 0);
+      a.centerOfMass = sum / a.visitIndices.length / total;
+    });
+
+    return { anchors, satellites };
+  }
+
+  function anchorRadius(score, minScore, maxScore) {
+    const minR = 28, maxR = 64;
+    if (maxScore === minScore) return (minR + maxR) / 2;
+    const t = (score - minScore) / (maxScore - minScore);
+    return minR + Math.sqrt(t) * (maxR - minR);
+  }
+
+  function satelliteRadius(sat) {
+    let r = SATELLITE_R + Math.min(3, Math.sqrt(sat.totalDwell) * 0.05);
+    if (sat.hasCopy) r += 1;
+    return r;
+  }
+
+  function assignSatellitesToAnchors(anchors, satellites) {
+    const buckets = new Map(anchors.map(a => [a.url, []]));
+    for (const sat of satellites) {
+      let chosen = anchors[0];
+      for (const a of anchors) {
+        if (a.firstIdx <= sat.firstIdx) chosen = a;
+        else break;
+      }
+      buckets.get(chosen.url).push(sat);
+    }
+    return buckets;
+  }
+
+  function computeAnchorEdges(flat, anchorUrls) {
+    const edges = new Map();
+    const byId = new Map(flat.map(n => [n.node_id, n]));
+    for (const node of flat) {
+      if (!node.parent_node_id) continue;
+      const parent = byId.get(node.parent_node_id);
+      if (!parent) continue;
+      const pUrl = normUrl(parent.url);
+      const cUrl = normUrl(node.url);
+      if (!anchorUrls.has(pUrl) || !anchorUrls.has(cUrl)) continue;
+      if (pUrl === cUrl) continue;
+      const key = pUrl + '||' + cUrl;
+      if (!edges.has(key)) edges.set(key, { count: 0, carrierCount: 0 });
+      const rec = edges.get(key);
+      rec.count++;
+      if (parent.active_signals.clipboard_copy_event) rec.carrierCount++;
+    }
+    return edges;
+  }
+
+  function findInterruption(flat) {
+    return flat.find(n => n.abandonment_state === 'interruption_gap');
+  }
+
+  function renderTreeView(root) {
+    clearCanvas();
+    const all = flatten(root);
+    const edgesG = document.getElementById('edges');
+    const nodesG = document.getElementById('nodes');
+
+    for (const node of all) {
+      for (const child of node.children) {
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const x1 = node.x, y1 = node.y + NODE_H / 2;
+        const x2 = child.x, y2 = child.y - NODE_H / 2;
+        const midY = (y1 + y2) / 2;
+        path.setAttribute('d', `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`);
+        path.setAttribute('class', 'edge');
+        edgesG.appendChild(path);
+      }
+    }
+
+    for (const node of all) {
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.setAttribute('class', 'node' + (node.parent_node_id == null ? ' root' : ''));
+      g.setAttribute('transform', `translate(${node.x - NODE_W / 2}, ${node.y - NODE_H / 2})`);
+
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('width', NODE_W); rect.setAttribute('height', NODE_H); rect.setAttribute('rx', 2);
+      g.appendChild(rect);
+
+      const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      dot.setAttribute('cx', 8); dot.setAttribute('cy', 8); dot.setAttribute('r', 1.5);
+      dot.setAttribute('class', 'dot');
+      g.appendChild(dot);
+
+      const idText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      idText.setAttribute('class', 'id');
+      idText.setAttribute('x', NODE_W - 8); idText.setAttribute('y', 12);
+      idText.setAttribute('text-anchor', 'end');
+      idText.textContent = node.node_id;
+      g.appendChild(idText);
+
+      const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      title.setAttribute('x', 8); title.setAttribute('y', 30);
+      title.textContent = truncate(node.page_title, 26);
+      g.appendChild(title);
+
+      nodesG.appendChild(g);
+    }
+
+    const xs = all.map(n => n.x);
+    const ys = all.map(n => n.y);
+    return {
+      minX: Math.min(...xs) - NODE_W / 2 - PAD,
+      maxX: Math.max(...xs) + NODE_W / 2 + PAD,
+      minY: Math.min(...ys) - NODE_H / 2 - PAD,
+      maxY: Math.max(...ys) + NODE_H / 2 + PAD,
+    };
+  }
+
+  let zoomDependent = [];
+
+  function renderAnchorView(flat) {
+    clearCanvas();
+    zoomDependent = [];
+
+    const { anchors, satellites } = prepareAnchorData(flat);
+    if (anchors.length === 0) return null;
+
+    const scores = anchors.map(a => a.score);
+    const minS = Math.min(...scores), maxS = Math.max(...scores);
+    anchors.forEach(a => { a.r = anchorRadius(a.score, minS, maxS); });
+
+    const coms = anchors.map(a => a.centerOfMass);
+    const minCom = Math.min(...coms), maxCom = Math.max(...coms);
+    const comRange = (maxCom - minCom) || 1;
+
+    anchors.forEach((a, i) => {
+      a.cx = i * ANCHOR_GAP_X;
+      const norm = (a.centerOfMass - minCom) / comRange;
+      a.cy = ANCHOR_BAND_Y + (norm - 0.5) * VERTICAL_RANGE;
+    });
+
+    const buckets = assignSatellitesToAnchors(anchors, satellites);
+    const interrupt = findInterruption(flat);
+    const anchorUrls = new Set(anchors.map(a => a.url));
+    const transitions = computeAnchorEdges(flat, anchorUrls);
+    const anchorByUrl = new Map(anchors.map(a => [a.url, a]));
+
+    const bgLayer = document.getElementById('bg-layer');
+    const edgesG = document.getElementById('edges');
+    const nodesG = document.getElementById('nodes');
+
+    // interruption band
+    if (interrupt) {
+      const intIdx = flat.indexOf(interrupt);
+      let left = null, right = null;
+      for (const a of anchors) {
+        if (a.firstIdx <= intIdx) left = a;
+        else { right = a; break; }
+      }
+      let bandX, bandW = 60;
+      if (left && right) bandX = (left.cx + right.cx) / 2 - bandW / 2;
+      else if (left) bandX = left.cx + ANCHOR_GAP_X / 2 - bandW / 2;
+      else if (right) bandX = right.cx - ANCHOR_GAP_X / 2 - bandW / 2;
+      if (bandX !== undefined) {
+        const band = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        band.setAttribute('class', 'interrupt-band');
+        band.setAttribute('x', bandX);
+        band.setAttribute('y', ANCHOR_BAND_Y - VERTICAL_RANGE);
+        band.setAttribute('width', bandW);
+        band.setAttribute('height', VERTICAL_RANGE * 2.5);
+        bgLayer.appendChild(band);
+
+        const lblY = ANCHOR_BAND_Y - VERTICAL_RANGE + 14;
+        const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        lbl.setAttribute('class', 'interrupt-label');
+        lbl.setAttribute('x', bandX + bandW / 2);
+        lbl.setAttribute('y', lblY);
+        lbl.setAttribute('font-size', '9');
+        lbl.textContent = 'interruption';
+        bgLayer.appendChild(lbl);
+
+        const lbl2 = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        lbl2.setAttribute('class', 'interrupt-label');
+        lbl2.setAttribute('x', bandX + bandW / 2);
+        lbl2.setAttribute('y', lblY + 12);
+        lbl2.setAttribute('font-size', '9');
+        lbl2.textContent = '15 min';
+        bgLayer.appendChild(lbl2);
+      }
+    }
+
+    // anchor-to-anchor edges (with carrier flag)
+    for (const [key, rec] of transitions) {
+      const [fromUrl, toUrl] = key.split('||');
+      const from = anchorByUrl.get(fromUrl);
+      const to = anchorByUrl.get(toUrl);
+      if (!from || !to) continue;
+      const arcAbove = from.cx <= to.cx;
+      const dx = to.cx - from.cx;
+      const dist = Math.abs(dx);
+      const curveHeight = Math.min(80, 30 + dist * 0.15);
+      const midX = (from.cx + to.cx) / 2;
+      const midY = (from.cy + to.cy) / 2 + (arcAbove ? -curveHeight : curveHeight);
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      const isCarrier = rec.carrierCount > 0;
+      path.setAttribute('class', 'anchor-edge' + (isCarrier ? ' carrier' : ''));
+      path.setAttribute('d', `M ${from.cx} ${from.cy} Q ${midX} ${midY} ${to.cx} ${to.cy}`);
+      path.setAttribute('stroke-width', Math.min(6, 1 + rec.count * 0.8));
+      edgesG.appendChild(path);
+    }
+
+    // satellites
+    for (const a of anchors) {
+      const sats = buckets.get(a.url) || [];
+      sats.forEach((sat, i) => {
+        const half = i % 2 === 0 ? 'top' : 'bottom';
+        const idxInHalf = Math.floor(i / 2);
+        const totalInHalf = Math.ceil(sats.length / 2);
+        let angleStart, angleEnd;
+        if (half === 'top') { angleStart = -160 * Math.PI / 180; angleEnd = -20 * Math.PI / 180; }
+        else                { angleStart = 20 * Math.PI / 180;   angleEnd = 160 * Math.PI / 180; }
+        const t = totalInHalf === 1 ? 0.5 : idxInHalf / Math.max(1, totalInHalf - 1);
+        const angle = angleStart + t * (angleEnd - angleStart);
+        const ringDist = a.r + SATELLITE_RING;
+        sat.cx = a.cx + Math.cos(angle) * ringDist;
+        sat.cy = a.cy + Math.sin(angle) * ringDist;
+
+        const link = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        link.setAttribute('class', 'satellite-link');
+        link.setAttribute('x1', a.cx + Math.cos(angle) * a.r);
+        link.setAttribute('y1', a.cy + Math.sin(angle) * a.r);
+        link.setAttribute('x2', sat.cx);
+        link.setAttribute('y2', sat.cy);
+        edgesG.appendChild(link);
+
+        const r = satelliteRadius(sat);
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot.setAttribute('class', 'satellite' + (sat.hasCopy ? ' has-copy' : ''));
+        dot.setAttribute('cx', sat.cx);
+        dot.setAttribute('cy', sat.cy);
+        dot.setAttribute('r', r);
+        nodesG.appendChild(dot);
+
+        const labelText = truncate(shortenTitle(sat.page_title), 22);
+        if (labelText) {
+          const onLeft = Math.cos(angle) < 0;
+          const labelX = sat.cx + (onLeft ? -(r + 4) : (r + 4));
+          const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          label.setAttribute('class', 'satellite-label');
+          label.setAttribute('x', labelX);
+          label.setAttribute('y', sat.cy + 3);
+          label.setAttribute('text-anchor', onLeft ? 'end' : 'start');
+          label.setAttribute('font-size', '10');
+          label.textContent = labelText;
+          nodesG.appendChild(label);
+          const estWidth = labelText.length * 6.2;
+          zoomDependent.push({
+            element: label,
+            minScale: MIN_SAT_LABEL_PX / Math.max(estWidth, 30),
+          });
+        }
+
+        zoomDependent.push({
+          element: dot,
+          minScale: MIN_SAT_DOT_PX / (2 * r),
+        });
+      });
+    }
+
+    // anchor circles + labels
+    for (const a of anchors) {
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('class', 'anchor-circle');
+      circle.setAttribute('cx', a.cx); circle.setAttribute('cy', a.cy); circle.setAttribute('r', a.r);
+      nodesG.appendChild(circle);
+
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      label.setAttribute('class', 'anchor-label');
+      label.setAttribute('x', a.cx);
+      label.setAttribute('y', a.cy - 3);
+      label.setAttribute('font-size', '11');
+      label.textContent = truncate(placeLabel(a.url, a.page_title), 22);
+      nodesG.appendChild(label);
+      zoomDependent.push({ element: label, minScale: MIN_ANCHOR_LABEL_PX / (2 * a.r) });
+
+      const meta = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      meta.setAttribute('class', 'anchor-meta');
+      meta.setAttribute('x', a.cx);
+      meta.setAttribute('y', a.cy + 11);
+      meta.setAttribute('font-size', '9');
+      const mins = Math.round(a.totalDwell / 60);
+      let metaText = `${a.visits.length} visits · ${mins}m`;
+      if (a.copyCount > 0) metaText += ` · ${a.copyCount} copies`;
+      if (a.pastesReceived > 0) metaText += ` · ${a.pastesReceived} pastes`;
+      meta.textContent = metaText;
+      nodesG.appendChild(meta);
+      zoomDependent.push({ element: meta, minScale: MIN_ANCHOR_META_PX / (2 * a.r) });
+    }
+
+    const allX = anchors.flatMap(a => [a.cx - a.r - SATELLITE_RING, a.cx + a.r + SATELLITE_RING]);
+    const allY = anchors.flatMap(a => [a.cy - a.r - SATELLITE_RING, a.cy + a.r + SATELLITE_RING]);
+    return {
+      minX: Math.min(...allX) - PAD,
+      maxX: Math.max(...allX) + PAD,
+      minY: Math.min(...allY) - PAD - 40,
+      maxY: Math.max(...allY) + PAD + 20,
+    };
+  }
+
+  function clearCanvas() {
+    document.getElementById('bg-layer').innerHTML = '';
+    document.getElementById('edges').innerHTML = '';
+    document.getElementById('nodes').innerHTML = '';
+    zoomDependent = [];
+  }
+
+  const stage = document.getElementById('stage');
+  const viewport = document.getElementById('viewport');
+  const zoomReadout = document.getElementById('zoom-readout');
+
+  let view = { x: 0, y: 0, scale: 1 };
+  let initialView = { x: 0, y: 0, scale: 1 };
+  let currentMode = 'tree';
+
+  function applyView() {
+    viewport.setAttribute('transform', `translate(${view.x} ${view.y}) scale(${view.scale})`);
+    zoomReadout.textContent = view.scale.toFixed(2) + '×';
+    updateZoomDependentVisibility();
+  }
+
+  function updateZoomDependentVisibility() {
+    const s = view.scale;
+    for (const item of zoomDependent) {
+      if (s >= item.minScale) item.element.classList.remove('hidden-by-zoom');
+      else item.element.classList.add('hidden-by-zoom');
+    }
+  }
+
+  function fitToBounds(b) {
+    const w = stage.clientWidth, h = stage.clientHeight;
+    const treeW = b.maxX - b.minX, treeH = b.maxY - b.minY;
+    const scale = Math.min(w / treeW, h / treeH, 1);
+    const x = -b.minX * scale + (w - treeW * scale) / 2;
+    const y = -b.minY * scale + (h - treeH * scale) / 2;
+    view = { x, y, scale };
+    initialView = { ...view };
+    applyView();
+  }
+
+  let dragging = false;
+  let dragStart = { x: 0, y: 0, vx: 0, vy: 0 };
+
+  stage.addEventListener('mousedown', e => {
+    dragging = true;
+    stage.classList.add('dragging');
+    dragStart = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y };
+  });
+  window.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    view.x = dragStart.vx + (e.clientX - dragStart.x);
+    view.y = dragStart.vy + (e.clientY - dragStart.y);
+    applyView();
+  });
+  window.addEventListener('mouseup', () => {
+    dragging = false;
+    stage.classList.remove('dragging');
+  });
+
+  stage.addEventListener('wheel', e => {
+    e.preventDefault();
+    const rect = stage.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const delta = -e.deltaY * 0.0015;
+    const newScale = Math.max(0.15, Math.min(8, view.scale * Math.exp(delta)));
+    const k = newScale / view.scale;
+    view.x = mx - (mx - view.x) * k;
+    view.y = my - (my - view.y) * k;
+    view.scale = newScale;
+    applyView();
+  }, { passive: false });
+
+  let cachedRoot = null;
+
+  function switchToTree() {
+    currentMode = 'tree';
+    document.getElementById('view-name').textContent = 'chronological';
+    if (!cachedRoot) {
+      cachedRoot = buildTree(DATA);
+      countLeaves(cachedRoot);
+      treeLayout(cachedRoot, 0, 0);
+    }
+    const bounds = renderTreeView(cachedRoot);
+    fitToBounds(bounds);
+  }
+
+  function switchToAnchor() {
+    currentMode = 'anchor';
+    document.getElementById('view-name').textContent = 'anchor constellation';
+    const bounds = renderAnchorView(DATA);
+    if (bounds) fitToBounds(bounds);
+  }
+
+  window.addEventListener('keydown', e => {
+    if (e.key === '0') switchToTree();
+    else if (e.key === '1') switchToAnchor();
+  });
+
+  function init() {
+    if (!DATA || !Array.isArray(DATA)) {
+      document.getElementById('node-count').textContent = 'no data';
+      return;
+    }
+    document.getElementById('node-count').textContent = DATA.length;
+    switchToTree();
+  }
+
+  init();
+</script>
+</body>
+</html>

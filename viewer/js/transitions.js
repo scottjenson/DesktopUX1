@@ -1,0 +1,370 @@
+// Master speed multiplier. 1.0 = original durations, 2.0 = twice as slow.
+const ANIM_SPEED = 2.0;
+
+let _rafHandle = null;
+
+function cancelTransition() {
+  if (_rafHandle) { cancelAnimationFrame(_rafHandle); _rafHandle = null; }
+}
+
+function _easeInOut(t) {
+  return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+}
+
+function _lerp(a, b, t) { return a + (b - a) * t; }
+
+// ── Single-loop phase runner ──────────────────────────────────────────────────
+//
+// Each phase: { duration (ms before ANIM_SPEED), onStart(), onFrame(t, et), onComplete() }
+// All phases share one RAF handle — nodes, viewport, and edges advance together
+// from the same timestamp and easing value every frame.
+// cancelTransition() stops the entire sequence with one call.
+
+function runPhases(phases) {
+  cancelTransition();
+  if (!phases.length) return;
+
+  let phaseIdx = 0;
+  let phaseStart = null;
+
+  function tick(now) {
+    const phase = phases[phaseIdx];
+
+    if (phaseStart === null) {
+      phaseStart = now;
+      if (phase.onStart) phase.onStart();
+    }
+
+    const t = Math.min((now - phaseStart) / (phase.duration * ANIM_SPEED), 1);
+    phase.onFrame(t, _easeInOut(t));
+
+    if (t >= 1) {
+      if (phase.onComplete) phase.onComplete();
+      phaseIdx++;
+      phaseStart = null;
+      if (phaseIdx < phases.length) _rafHandle = requestAnimationFrame(tick);
+      else _rafHandle = null;
+    } else {
+      _rafHandle = requestAnimationFrame(tick);
+    }
+  }
+
+  _rafHandle = requestAnimationFrame(tick);
+}
+
+// ── Per-frame helpers ─────────────────────────────────────────────────────────
+
+function _snapshotPositions() {
+  const snap = new Map();
+  for (const [id, pos] of currentPositions) snap.set(id, { ...pos });
+  return snap;
+}
+
+function _snapshotView() {
+  return { x: view.x, y: view.y, scale: view.scale };
+}
+
+// Compute the target {x, y, scale} that fitToBounds would produce for given bounds.
+function _targetView(bounds) {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  const bW = bounds.maxX - bounds.minX, bH = bounds.maxY - bounds.minY;
+  const scale = Math.min(w / bW, h / bH, 1);
+  return {
+    x: -bounds.minX * scale + (w - bW * scale) / 2,
+    y: -bounds.minY * scale + (h - bH * scale) / 2,
+    scale,
+  };
+}
+
+// Snap labels and circleClass from targetLayout immediately, then return a
+// position snapshot to interpolate from. Call this inside onStart.
+function _prepareNodeTween(targetLayout) {
+  for (const [id, target] of targetLayout) {
+    if (!nodeRegistry.has(id)) continue;
+    const { circle, label } = nodeRegistry.get(id);
+    if (target.circleClass !== undefined)
+      circle.setAttribute('class', 'node-circle' + (target.circleClass ? ' ' + target.circleClass : ''));
+    if (target.labelText !== undefined) {
+      label.setAttribute('x', target.labelX);
+      label.setAttribute('y', target.labelY);
+      label.setAttribute('text-anchor', target.labelAnchor);
+      label.textContent = target.labelText;
+    }
+  }
+  return _snapshotPositions();
+}
+
+function _applyNodeFrame(fromSnap, targetLayout, et) {
+  for (const [id, target] of targetLayout) {
+    if (!nodeRegistry.has(id)) continue;
+    const from = fromSnap.get(id) || { cx: 0, cy: 0, r: NODE_R, opacity: 1 };
+    const cx      = _lerp(from.cx,          target.cx,          et);
+    const cy      = _lerp(from.cy,          target.cy,          et);
+    const r       = _lerp(from.r,           target.r,           et);
+    const opacity = _lerp(from.opacity ?? 1, target.opacity ?? 1, et);
+    currentPositions.set(id, { cx, cy, r, opacity });
+    const { circle, label } = nodeRegistry.get(id);
+    circle.setAttribute('cx', cx);
+    circle.setAttribute('cy', cy);
+    circle.setAttribute('r', r);
+    circle.setAttribute('opacity', opacity);
+    label.setAttribute('opacity', opacity);
+  }
+}
+
+function _applyViewFrame(fromView, toView, et) {
+  view.x     = _lerp(fromView.x,     toView.x,     et);
+  view.y     = _lerp(fromView.y,     toView.y,     et);
+  view.scale = _lerp(fromView.scale, toView.scale, et);
+  applyView();
+}
+
+function _edgesOpacity() {
+  return parseFloat(document.getElementById('edges').getAttribute('opacity') || '1');
+}
+
+function _applyEdgesFrame(fromOp, toOp, et) {
+  const o = _lerp(fromOp, toOp, et);
+  document.getElementById('edges').setAttribute('opacity', o);
+  document.getElementById('bg-layer').setAttribute('opacity', o);
+}
+
+// Build an opacity-only layout: same positions as current, opacity set by opacityFn(id).
+function _opacityLayout(opacityFn) {
+  const layout = new Map();
+  for (const [id, pos] of currentPositions)
+    layout.set(id, { cx: pos.cx, cy: pos.cy, r: pos.r, opacity: opacityFn(id) });
+  return layout;
+}
+
+// ── History ↔ Tree ────────────────────────────────────────────────────────────
+
+function transitionToTree(flat, root) {
+  const tLayout = computeTreeLayout(flat, root);
+  const bounds  = treeBounds(root);
+  const toView  = _targetView(bounds);
+  let fromSnap, fromView, fromEdgeOp;
+
+  runPhases([
+    {
+      duration: 420,
+      onStart() {
+        document.getElementById('bg-layer').innerHTML = '';
+        fromSnap   = _prepareNodeTween(tLayout);
+        fromView   = _snapshotView();
+        fromEdgeOp = _edgesOpacity();
+      },
+      onFrame(t, et) {
+        _applyNodeFrame(fromSnap, tLayout, et);
+        _applyViewFrame(fromView, toView, et);
+        _applyEdgesFrame(fromEdgeOp, 0, et);
+      },
+      onComplete() {
+        renderTreeEdges(root);
+        document.getElementById('edges').setAttribute('opacity', '0');
+      },
+    },
+    {
+      duration: 200,
+      onFrame(t, et) { _applyEdgesFrame(0, 1, et); },
+      onComplete()   { fitToBounds(bounds); },
+    },
+  ]);
+}
+
+function transitionToHistory(flat) {
+  const hLayout = computeHistoryLayout(flat);
+  const bounds  = historyBounds(flat);
+  const toView  = _targetView(bounds);
+  let fromSnap, fromView, fromEdgeOp;
+
+  runPhases([
+    {
+      duration: 420,
+      onStart() {
+        document.getElementById('bg-layer').innerHTML = '';
+        fromSnap   = _prepareNodeTween(hLayout);
+        fromView   = _snapshotView();
+        fromEdgeOp = _edgesOpacity();
+      },
+      onFrame(t, et) {
+        _applyNodeFrame(fromSnap, hLayout, et);
+        _applyViewFrame(fromView, toView, et);
+        _applyEdgesFrame(fromEdgeOp, 0, et);
+      },
+      onComplete() {
+        document.getElementById('edges').innerHTML = '';
+        document.getElementById('edges').setAttribute('opacity', '1');
+        document.getElementById('bg-layer').setAttribute('opacity', '1');
+        fitToBounds(bounds);
+      },
+    },
+  ]);
+}
+
+// ── Tree → Anchor (the important one) ────────────────────────────────────────
+
+function transitionTreeToAnchor(flat) {
+  const { layout: aLayout, anchorNodeIds, bounds } = computeAnchorLayout(flat);
+  const toView = _targetView(bounds);
+
+  // Apply anchor circle styling before animation begins
+  for (const [id] of aLayout) {
+    if (anchorNodeIds.has(id))
+      nodeRegistry.get(id).circle.setAttribute('class', 'node-circle anchored');
+  }
+
+  let fromSnap, fromView, fromEdgeOp, emphLayout, restoreLayout;
+
+  runPhases([
+    // Phase 1: dim non-anchors + fade out tree edges (positions unchanged)
+    {
+      duration: 180,
+      onStart() {
+        emphLayout = _opacityLayout(id => anchorNodeIds.has(id) ? 1 : 0.2);
+        fromSnap   = _prepareNodeTween(emphLayout);
+        fromEdgeOp = _edgesOpacity();
+      },
+      onFrame(t, et) {
+        _applyNodeFrame(fromSnap, emphLayout, et);
+        _applyEdgesFrame(fromEdgeOp, 0, et);
+      },
+    },
+    // Phase 2: nodes fly to anchor positions; viewport pans in the same frame
+    {
+      duration: 450,
+      onStart() {
+        fromSnap = _prepareNodeTween(aLayout);
+        fromView = _snapshotView();
+      },
+      onFrame(t, et) {
+        _applyNodeFrame(fromSnap, aLayout, et);
+        _applyViewFrame(fromView, toView, et);
+      },
+    },
+    // Phase 3: restore full opacity on all nodes
+    {
+      duration: 160,
+      onStart() {
+        restoreLayout = _opacityLayout(() => 1);
+        fromSnap      = _prepareNodeTween(restoreLayout);
+      },
+      onFrame(t, et) { _applyNodeFrame(fromSnap, restoreLayout, et); },
+      onComplete() {
+        renderAnchorEdgesAndBg(flat);
+        document.getElementById('edges').setAttribute('opacity', '0');
+        document.getElementById('bg-layer').setAttribute('opacity', '0');
+        fitToBounds(bounds);
+      },
+    },
+    // Phase 4: fade in anchor edges
+    {
+      duration: 300,
+      onFrame(t, et) { _applyEdgesFrame(0, 1, et); },
+    },
+  ]);
+}
+
+// ── Anchor → Tree ─────────────────────────────────────────────────────────────
+
+function transitionAnchorToTree(flat, root) {
+  const tLayout = computeTreeLayout(flat, root);
+  const bounds  = treeBounds(root);
+  const toView  = _targetView(bounds);
+  const { anchorNodeIds } = computeAnchorLayout(flat);
+
+  let fromSnap, fromView, fromEdgeOp, emphLayout, restoreLayout;
+
+  runPhases([
+    // Phase 1: dim non-anchors + fade out anchor edges
+    {
+      duration: 180,
+      onStart() {
+        emphLayout = _opacityLayout(id => anchorNodeIds.has(id) ? 1 : 0.2);
+        fromSnap   = _prepareNodeTween(emphLayout);
+        fromEdgeOp = _edgesOpacity();
+      },
+      onFrame(t, et) {
+        _applyNodeFrame(fromSnap, emphLayout, et);
+        _applyEdgesFrame(fromEdgeOp, 0, et);
+      },
+    },
+    // Phase 2: nodes fly to tree positions; viewport pans in the same frame
+    {
+      duration: 450,
+      onStart() {
+        fromSnap = _prepareNodeTween(tLayout);
+        fromView = _snapshotView();
+      },
+      onFrame(t, et) {
+        _applyNodeFrame(fromSnap, tLayout, et);
+        _applyViewFrame(fromView, toView, et);
+      },
+    },
+    // Phase 3: restore full opacity
+    {
+      duration: 160,
+      onStart() {
+        restoreLayout = _opacityLayout(() => 1);
+        fromSnap      = _prepareNodeTween(restoreLayout);
+      },
+      onFrame(t, et) { _applyNodeFrame(fromSnap, restoreLayout, et); },
+      onComplete() {
+        document.getElementById('bg-layer').innerHTML = '';
+        renderTreeEdges(root);
+        document.getElementById('edges').setAttribute('opacity', '0');
+        fitToBounds(bounds);
+      },
+    },
+    // Phase 4: fade in tree edges
+    {
+      duration: 200,
+      onFrame(t, et) { _applyEdgesFrame(0, 1, et); },
+    },
+  ]);
+}
+
+// ── Direct jumps (non-adjacent views) ────────────────────────────────────────
+
+function transitionDirectTo(targetLayout, renderEdgesFn, bounds) {
+  const toView = _targetView(bounds);
+  let fromSnap, fromView, fromEdgeOp;
+
+  const phases = [
+    {
+      duration: 500,
+      onStart() {
+        document.getElementById('bg-layer').innerHTML = '';
+        fromSnap   = _prepareNodeTween(targetLayout);
+        fromView   = _snapshotView();
+        fromEdgeOp = _edgesOpacity();
+      },
+      onFrame(t, et) {
+        _applyNodeFrame(fromSnap, targetLayout, et);
+        _applyViewFrame(fromView, toView, et);
+        _applyEdgesFrame(fromEdgeOp, 0, et);
+      },
+      onComplete() {
+        if (renderEdgesFn) {
+          renderEdgesFn();
+          document.getElementById('edges').setAttribute('opacity', '0');
+          document.getElementById('bg-layer').setAttribute('opacity', '0');
+        } else {
+          document.getElementById('edges').innerHTML = '';
+          document.getElementById('edges').setAttribute('opacity', '1');
+          document.getElementById('bg-layer').setAttribute('opacity', '1');
+        }
+        fitToBounds(bounds);
+      },
+    },
+  ];
+
+  if (renderEdgesFn) {
+    phases.push({
+      duration: 250,
+      onFrame(t, et) { _applyEdgesFrame(0, 1, et); },
+    });
+  }
+
+  runPhases(phases);
+}

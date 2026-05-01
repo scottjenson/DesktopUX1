@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>history tree — v3</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,400;9..144,500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="canvas-bg"></div>
+
+<header>
+  <span class="title">history tree</span>
+  <div class="view-switcher">
+    <button class="view-btn" data-view="history">history</button>
+    <button class="view-btn" data-view="tree">tree</button>
+    <button class="view-btn" data-view="anchor">anchor</button>
+  </div>
+  <span class="sub"><span id="view-name" class="active">history</span></span>
+  <span class="meta"><span id="node-count">—</span> nodes</span>
+</header>
+
+<div id="stage">
+  <svg id="svg" xmlns="http://www.w3.org/2000/svg">
+    <g id="viewport">
+      <g id="bg-layer"></g>
+      <g id="edges"></g>
+      <g id="nodes"></g>
+    </g>
+  </svg>
+</div>
+
+<footer>
+  <span>drag to pan</span>
+  <span>scroll to zoom</span>
+  <span><kbd>1</kbd> history</span>
+  <span><kbd>2</kbd> tree</span>
+  <span><kbd>3</kbd> anchor</span>
+  <span class="right">zoom <span id="zoom-readout">1.00×</span></span>
+</footer>
+
+<script src="js/data.js"></script>
+<script src="js/url-utils.js"></script>
+<script src="js/tree-layout.js"></script>
+<script src="js/anchor-data.js"></script>
+<script src="js/node-registry.js"></script>
+<script src="js/history-layout.js"></script>
+<script src="js/tree-view.js"></script>
+<script src="js/anchor-view.js"></script>
+<script src="js/transitions.js"></script>
+<script src="js/pan-zoom.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
