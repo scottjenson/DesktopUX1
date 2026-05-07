@@ -55,11 +55,13 @@ function computeAnchorLayout(flat) {
     sats.forEach((sat, i) => {
       const half = i % 2 === 0 ? 'top' : 'bottom';
       const idxInHalf = Math.floor(i / 2);
-      const totalInHalf = Math.ceil(sats.length / 2);
+      const topCount = Math.ceil(sats.length / 2);
+      const bottomCount = Math.floor(sats.length / 2);
+      const countInHalf = half === 'top' ? topCount : bottomCount;
       let angleStart, angleEnd;
       if (half === 'top') { angleStart = -160 * Math.PI / 180; angleEnd = -20 * Math.PI / 180; }
       else                { angleStart = 20 * Math.PI / 180;   angleEnd = 160 * Math.PI / 180; }
-      const t = totalInHalf === 1 ? 0.5 : idxInHalf / Math.max(1, totalInHalf - 1);
+      const t = countInHalf === 1 ? 0.5 : idxInHalf / Math.max(1, countInHalf - 1);
       sat._angle = angleStart + t * (angleEnd - angleStart);
       const ringDist = a.r + SATELLITE_RING;
       sat.cx = a.cx + Math.cos(sat._angle) * ringDist;
