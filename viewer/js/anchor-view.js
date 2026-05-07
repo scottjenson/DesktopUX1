@@ -13,15 +13,33 @@ function computeAnchorLayout(flat) {
   const minS = Math.min(...scores), maxS = Math.max(...scores);
   anchors.forEach(a => { a.r = anchorRadius(a.score, minS, maxS); });
 
-  const coms = anchors.map(a => a.centerOfMass);
-  const minCom = Math.min(...coms), maxCom = Math.max(...coms);
-  const comRange = (maxCom - minCom) || 1;
+  // Three-row hierarchical layout
+  const rootAnchor = anchors.find(a => a.firstIdx === 0);
+  const slackAnchor = anchors.find(a => a.totalDwell > 700 && a !== rootAnchor);
+  const keepAnchor = anchors.find(a => a.url === 'KEEP');
+  const copyAnchors = anchors.filter(a => a !== rootAnchor && a !== slackAnchor && a !== keepAnchor && a.copyCount > 0);
 
-  anchors.forEach((a, i) => {
-    a.cx = i * ANCHOR_GAP_X;
-    const norm = (a.centerOfMass - minCom) / comRange;
-    a.cy = ANCHOR_BAND_Y + (norm - 0.5) * VERTICAL_RANGE;
-  });
+  const topY = 0;
+  const middleY = 350;
+  const bottomY = 700;
+  const centerX = 500;
+  const copyGap = 320;
+
+  // Row 1: root and slack
+  if (rootAnchor) { rootAnchor.cx = centerX - 180; rootAnchor.cy = topY; }
+  if (slackAnchor) { slackAnchor.cx = centerX + 180; slackAnchor.cy = topY; }
+
+  // Row 2: copy nodes (Vado, Trek, Gazelle) centered horizontally
+  if (copyAnchors.length > 0) {
+    const copyStartX = centerX - (copyAnchors.length - 1) * copyGap / 2;
+    copyAnchors.forEach((a, i) => {
+      a.cx = copyStartX + i * copyGap;
+      a.cy = middleY;
+    });
+  }
+
+  // Row 3: paste nodes (Keep)
+  if (keepAnchor) { keepAnchor.cx = centerX; keepAnchor.cy = bottomY; }
 
   const buckets = assignSatellitesToAnchors(anchors, satellites, flat);
 
@@ -156,14 +174,29 @@ function renderAnchorEdgesAndBg(flat) {
   const scores = anchors.map(a => a.score);
   const minS = Math.min(...scores), maxS = Math.max(...scores);
   anchors.forEach(a => { a.r = anchorRadius(a.score, minS, maxS); });
-  const coms = anchors.map(a => a.centerOfMass);
-  const minCom = Math.min(...coms), maxCom = Math.max(...coms);
-  const comRange = (maxCom - minCom) || 1;
-  anchors.forEach((a, i) => {
-    a.cx = i * ANCHOR_GAP_X;
-    const norm = (a.centerOfMass - minCom) / comRange;
-    a.cy = ANCHOR_BAND_Y + (norm - 0.5) * VERTICAL_RANGE;
-  });
+
+  // Match layout positioning from computeAnchorLayout
+  const rootAnchor = anchors.find(a => a.firstIdx === 0);
+  const slackAnchor = anchors.find(a => a.totalDwell > 700 && a !== rootAnchor);
+  const keepAnchor = anchors.find(a => a.url === 'KEEP');
+  const copyAnchors = anchors.filter(a => a !== rootAnchor && a !== slackAnchor && a !== keepAnchor && a.copyCount > 0);
+
+  const topY = 0;
+  const middleY = 350;
+  const bottomY = 700;
+  const centerX = 500;
+  const copyGap = 320;
+
+  if (rootAnchor) { rootAnchor.cx = centerX - 180; rootAnchor.cy = topY; }
+  if (slackAnchor) { slackAnchor.cx = centerX + 180; slackAnchor.cy = topY; }
+  if (copyAnchors.length > 0) {
+    const copyStartX = centerX - (copyAnchors.length - 1) * copyGap / 2;
+    copyAnchors.forEach((a, i) => {
+      a.cx = copyStartX + i * copyGap;
+      a.cy = middleY;
+    });
+  }
+  if (keepAnchor) { keepAnchor.cx = centerX; keepAnchor.cy = bottomY; }
 
   const bgLayer = document.getElementById('bg-layer');
   const edgesG = document.getElementById('edges');
@@ -178,11 +211,12 @@ function renderAnchorEdgesAndBg(flat) {
     const [fromUrl, toUrl] = key.split('||');
     const from = anchorByUrl.get(fromUrl), to = anchorByUrl.get(toUrl);
     if (!from || !to) continue;
-    const arcAbove = from.cx <= to.cx;
-    const dist = Math.abs(to.cx - from.cx);
-    const curveHeight = Math.min(80, 30 + dist * 0.15);
+    const dx = Math.abs(to.cx - from.cx);
+    const dy = to.cy - from.cy;
+    const horizontalOffset = dy > 0 ? 60 : -60;  // Bulge down if to is below, up if above
+    const curveHeight = Math.min(100, 40 + Math.abs(dx) * 0.1);
     const midX = (from.cx + to.cx) / 2;
-    const midY = (from.cy + to.cy) / 2 + (arcAbove ? -curveHeight : curveHeight);
+    const midY = (from.cy + to.cy) / 2 + horizontalOffset + (dy > 0 ? curveHeight : -curveHeight);
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('class', 'anchor-edge' + (rec.carrierCount > 0 ? ' carrier' : ''));
     path.setAttribute('d', `M ${from.cx} ${from.cy} Q ${midX} ${midY} ${to.cx} ${to.cy}`);
