@@ -224,7 +224,7 @@ function transitionToHistory(flat) {
 // ── Tree → Anchor (the important one) ────────────────────────────────────────
 
 function transitionTreeToAnchor(flat) {
-  const { layout: aLayout, anchorNodeIds, anchorClusters, bounds } = computeAnchorLayout(flat);
+  const { layout: aLayout, anchorNodeIds, bounds } = computeAnchorLayout(flat);
   const toView = _targetView(bounds);
 
   // Apply anchor circle styling before animation begins, preserving color modifiers
@@ -280,7 +280,7 @@ function transitionTreeToAnchor(flat) {
     {
       duration: 300,
       onFrame(t, et) { _applyEdgesFrame(0, 1, et); },
-      onComplete() { setupAnchorHover(anchorClusters); },
+      onComplete() { },
     },
   ]);
 }

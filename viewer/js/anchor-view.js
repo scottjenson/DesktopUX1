@@ -4,10 +4,10 @@ const ANCHOR_TITLE_Y_RATIO    = 0.15;
 const ANCHOR_META1_Y_RATIO    = 0.20;
 const ANCHOR_META2_Y_RATIO    = 0.38;
 
-// Returns { layout, anchorNodeIds, satNodeIds, anchorClusters, bounds }
+// Returns { layout, anchorNodeIds, bounds }
 function computeAnchorLayout(flat) {
   const { anchors, satellites } = prepareAnchorData(flat);
-  if (anchors.length === 0) return { layout: new Map(), anchorNodeIds: new Set(), satNodeIds: new Set(), anchorClusters: [], bounds: null };
+  if (anchors.length === 0) return { layout: new Map(), anchorNodeIds: new Set(), bounds: null };
 
   const scores = anchors.map(a => a.score);
   const minS = Math.min(...scores), maxS = Math.max(...scores);
@@ -23,9 +23,15 @@ function computeAnchorLayout(flat) {
     a.cy = ANCHOR_BAND_Y + (norm - 0.5) * VERTICAL_RANGE;
   });
 
-  const buckets = assignSatellitesToAnchors(anchors, satellites);
+  const buckets = assignSatellitesToAnchors(anchors, satellites, flat);
 
-  // Compute satellite positions
+  // Normalize non-anchor node radii to [12-40]px across all nodes
+  const allSats = anchors.flatMap(a => buckets.get(a.url) || []);
+  const satScores = allSats.map(nodeScore);
+  const minSatS = Math.min(...satScores), maxSatS = Math.max(...satScores);
+  allSats.forEach(sat => { sat.r = nodeRadius(nodeScore(sat), minSatS, maxSatS); });
+
+  // Compute node positions around their anchor
   for (const a of anchors) {
     const sats = buckets.get(a.url) || [];
     sats.forEach((sat, i) => {
@@ -40,7 +46,6 @@ function computeAnchorLayout(flat) {
       const ringDist = a.r + SATELLITE_RING;
       sat.cx = a.cx + Math.cos(sat._angle) * ringDist;
       sat.cy = a.cy + Math.sin(sat._angle) * ringDist;
-      sat.r = satelliteRadius(sat);
     });
   }
 
@@ -58,71 +63,56 @@ function computeAnchorLayout(flat) {
   }
   for (const a of anchors) {
     for (const sat of (buckets.get(a.url) || [])) {
-      const onLeft = Math.cos(sat._angle) < 0;
       placeMap.set(sat.url, {
         cx: sat.cx, cy: sat.cy, r: sat.r, isAnchor: false,
-        onLeft,
+        url: sat.url, page_title: sat.page_title,
+        visitCount: sat.visits.length,
+        totalDwell: sat.totalDwell,
+        copyCount: sat.copyCount,
+        pasteCount: sat.pastesReceived,
       });
     }
   }
 
-  // Map each of the 50 nodes to its place position
+  // Map each node to its place position — anchors and non-anchors render identically
   const layout = new Map();
   const anchorNodeIds = new Set();
-  const satNodeIds = new Set();
 
   for (const node of flat) {
     const url = normUrl(node.url);
     const place = placeMap.get(url);
     if (!place) continue;
 
-    // Color is determined at place level so all visits to the same URL share one class
+    // Color determined at place level so all visits to same URL share one class
     const placeHasPaste = (place.pasteCount || 0) > 0;
     const placeHasCopy  = (place.copyCount  || 0) > 0;
     const colorClass = placeHasPaste ? ' paste' : placeHasCopy ? ' copy' : '';
 
-    if (place.isAnchor) {
-      const dwellMin = Math.round(place.totalDwell / 60);
-      const meta2Text = placeHasPaste
-        ? `${place.pasteCount} pastes`
-        : placeHasCopy ? `${place.copyCount} copies` : '';
-      layout.set(node.node_id, {
-        cx: place.cx, cy: place.cy, r: place.r, opacity: 1,
-        labelX: place.cx,
-        labelY: place.cy - place.r * ANCHOR_TITLE_Y_RATIO,
-        labelAnchor: 'middle',
-        labelFontSize: place.r * ANCHOR_TITLE_SIZE_RATIO,
-        labelBaseline: 'central',
-        labelText: truncate(placeLabel(place.url, place.page_title), 20),
-        circleClass: 'anchor' + colorClass,
-        metaText: `${place.visitCount} visits · ${dwellMin}m`,
-        metaX: place.cx,
-        metaY: place.cy + place.r * ANCHOR_META1_Y_RATIO,
-        metaFontSize: place.r * ANCHOR_META_SIZE_RATIO,
-        meta2Text,
-        meta2X: place.cx,
-        meta2Y: place.cy + place.r * ANCHOR_META2_Y_RATIO,
-      });
-      anchorNodeIds.add(node.node_id);
-    } else {
-      layout.set(node.node_id, {
-        cx: place.cx, cy: place.cy, r: place.r, opacity: 1,
-        labelX: place.cx, labelY: place.cy,
-        labelAnchor: 'middle',
-        labelFontSize: 10,
-        labelBaseline: 'auto',
-        labelText: '',
-        circleClass: 'satellite' + colorClass,
-        metaText: '',
-        metaX: place.cx,
-        metaY: place.cy,
-        metaFontSize: 9,
-        meta2Text: '',
-        meta2X: place.cx,
-        meta2Y: place.cy,
-      });
-      satNodeIds.add(node.node_id);
-    }
+    const dwellMin = Math.round(place.totalDwell / 60);
+    const meta2Text = placeHasPaste
+      ? `${place.pasteCount} pastes`
+      : placeHasCopy ? `${place.copyCount} copies` : '';
+    const visitLabel = `${place.visitCount} visit${place.visitCount !== 1 ? 's' : ''} · ${dwellMin}m`;
+
+    layout.set(node.node_id, {
+      cx: place.cx, cy: place.cy, r: place.r, opacity: 1,
+      labelX: place.cx,
+      labelY: place.cy - place.r * ANCHOR_TITLE_Y_RATIO,
+      labelAnchor: 'middle',
+      labelFontSize: place.r * ANCHOR_TITLE_SIZE_RATIO,
+      labelBaseline: 'central',
+      labelText: truncate(placeLabel(place.url, place.page_title), 20),
+      circleClass: (place.isAnchor ? 'anchor' : '') + colorClass,
+      metaText: visitLabel,
+      metaX: place.cx,
+      metaY: place.cy + place.r * ANCHOR_META1_Y_RATIO,
+      metaFontSize: place.r * ANCHOR_META_SIZE_RATIO,
+      meta2Text,
+      meta2X: place.cx,
+      meta2Y: place.cy + place.r * ANCHOR_META2_Y_RATIO,
+    });
+
+    if (place.isAnchor) anchorNodeIds.add(node.node_id);
   }
 
   const allX = anchors.flatMap(a => [a.cx - a.r - SATELLITE_RING, a.cx + a.r + SATELLITE_RING]);
@@ -134,21 +124,7 @@ function computeAnchorLayout(flat) {
     maxY: Math.max(...allY) + PAD + 20,
   };
 
-  // Build anchor cluster data for hover interaction
-  const anchorClusters = anchors.map(a => ({
-    cx: a.cx, cy: a.cy, r: a.r,
-    satellites: (buckets.get(a.url) || []).map(sat => {
-      const onLeft = Math.cos(sat._angle) < 0;
-      return {
-        labelX: sat.cx + (onLeft ? -(sat.r + 6) : (sat.r + 6)),
-        labelY: sat.cy + 4,
-        onLeft,
-        label: truncate(placeLabel(sat.url, sat.page_title), 22),
-      };
-    }),
-  }));
-
-  return { layout, anchorNodeIds, satNodeIds, anchorClusters, bounds };
+  return { layout, anchorNodeIds, bounds };
 }
 
 function renderAnchorEdgesAndBg(flat) {
@@ -172,36 +148,6 @@ function renderAnchorEdgesAndBg(flat) {
   bgLayer.innerHTML = '';
   edgesG.innerHTML = '';
 
-  // Interruption band
-  const interrupt = findInterruption(flat);
-  if (interrupt) {
-    const intIdx = flat.indexOf(interrupt);
-    let left = null, right = null;
-    for (const a of anchors) {
-      if (a.firstIdx <= intIdx) left = a;
-      else { right = a; break; }
-    }
-    let bandX, bandW = 60;
-    if (left && right) bandX = (left.cx + right.cx) / 2 - bandW / 2;
-    else if (left) bandX = left.cx + ANCHOR_GAP_X / 2 - bandW / 2;
-    else if (right) bandX = right.cx - ANCHOR_GAP_X / 2 - bandW / 2;
-    if (bandX !== undefined) {
-      const band = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      band.setAttribute('class', 'interrupt-band');
-      band.setAttribute('x', bandX); band.setAttribute('y', ANCHOR_BAND_Y - VERTICAL_RANGE);
-      band.setAttribute('width', bandW); band.setAttribute('height', VERTICAL_RANGE * 2.5);
-      bgLayer.appendChild(band);
-      const lblY = ANCHOR_BAND_Y - VERTICAL_RANGE + 14;
-      for (const [text, dy] of [['interruption', 0], ['15 min', 12]]) {
-        const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        lbl.setAttribute('class', 'interrupt-label');
-        lbl.setAttribute('x', bandX + bandW / 2); lbl.setAttribute('y', lblY + dy);
-        lbl.setAttribute('font-size', '9'); lbl.textContent = text;
-        bgLayer.appendChild(lbl);
-      }
-    }
-  }
-
   // Anchor-to-anchor edges
   const anchorUrls = new Set(anchors.map(a => a.url));
   const transitions = computeAnchorEdges(flat, anchorUrls);
@@ -223,7 +169,7 @@ function renderAnchorEdgesAndBg(flat) {
   }
 
   // Satellite link lines
-  const buckets = assignSatellitesToAnchors(anchors, prepareAnchorData(flat).satellites);
+  const buckets = assignSatellitesToAnchors(anchors, prepareAnchorData(flat).satellites, flat);
   for (const a of anchors) {
     const sats = buckets.get(a.url) || [];
     sats.forEach((sat, i) => {
@@ -247,46 +193,3 @@ function renderAnchorEdgesAndBg(flat) {
   }
 }
 
-// ── Hover interaction ──────────────────────────────────────────────────────────
-
-function setupAnchorHover(anchorClusters) {
-  const targetsG = document.getElementById('hover-targets');
-  const labelsG = document.getElementById('hover-labels');
-  targetsG.innerHTML = '';
-  labelsG.innerHTML = '';
-
-  for (const cluster of anchorClusters) {
-    const satLabels = cluster.satellites.map(sat => {
-      const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      lbl.setAttribute('class', 'sat-hover-label');
-      lbl.setAttribute('x', sat.labelX);
-      lbl.setAttribute('y', sat.labelY);
-      lbl.setAttribute('text-anchor', sat.onLeft ? 'end' : 'start');
-      lbl.setAttribute('font-size', 9);
-      lbl.textContent = sat.label;
-      lbl.style.opacity = '0';
-      labelsG.appendChild(lbl);
-      return lbl;
-    });
-
-    const hitTarget = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    hitTarget.setAttribute('cx', cluster.cx);
-    hitTarget.setAttribute('cy', cluster.cy);
-    hitTarget.setAttribute('r', cluster.r);
-    hitTarget.setAttribute('fill', 'transparent');
-    hitTarget.setAttribute('stroke', 'none');
-    hitTarget.style.cursor = 'default';
-    hitTarget.addEventListener('mouseenter', () => {
-      for (const lbl of satLabels) lbl.style.opacity = '1';
-    });
-    hitTarget.addEventListener('mouseleave', () => {
-      for (const lbl of satLabels) lbl.style.opacity = '0';
-    });
-    targetsG.appendChild(hitTarget);
-  }
-}
-
-function teardownAnchorHover() {
-  document.getElementById('hover-targets').innerHTML = '';
-  document.getElementById('hover-labels').innerHTML = '';
-}

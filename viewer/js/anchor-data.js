@@ -2,12 +2,8 @@ const ANCHOR_BAND_Y = 0;
 const ANCHOR_GAP_X = 280;
 const VERTICAL_RANGE = 220;
 const SATELLITE_RING = 95;
-const SATELLITE_R = 4;
-
 const MIN_ANCHOR_LABEL_PX = 60;
 const MIN_ANCHOR_META_PX = 80;
-const MIN_SAT_LABEL_PX = 70;
-const MIN_SAT_DOT_PX = 1.5;
 
 function prepareAnchorData(flat) {
   const byUrl = new Map();
@@ -91,21 +87,47 @@ function anchorRadius(score, minScore, maxScore) {
   return minR + Math.sqrt(t) * (maxR - minR);
 }
 
-function satelliteRadius(sat) {
-  let r = SATELLITE_R + Math.min(3, Math.sqrt(sat.totalDwell) * 0.05);
-  if (sat.hasCopy) r += 1;
-  return r;
+function nodeRadius(score, minScore, maxScore) {
+  const minR = 12, maxR = 40;
+  if (maxScore === minScore) return (minR + maxR) / 2;
+  const t = (score - minScore) / (maxScore - minScore);
+  return minR + Math.sqrt(t) * (maxR - minR);
 }
 
-function assignSatellitesToAnchors(anchors, satellites) {
+function nodeScore(place) {
+  return Math.pow(place.totalDwell, 0.8) + 12 * (place.copyCount || 0) + 8 * (place.pastesReceived || 0);
+}
+
+
+function assignSatellitesToAnchors(anchors, satellites, flat) {
   const buckets = new Map(anchors.map(a => [a.url, []]));
-  for (const sat of satellites) {
-    let chosen = anchors[0];
-    for (const a of anchors) {
-      if (a.firstIdx <= sat.firstIdx) chosen = a;
-      else break;
+  const anchorByUrl = new Map(anchors.map(a => [a.url, a]));
+
+  if (flat) {
+    const nodeById = new Map(flat.map(n => [n.node_id, n]));
+    for (const sat of satellites) {
+      let chosen = anchors[0];
+      for (const idx of sat.visitIndices) {
+        const node = flat[idx];
+        const parent = node?.parent_node_id ? nodeById.get(node.parent_node_id) : null;
+        if (parent) {
+          const parentUrl = normUrl(parent.url);
+          if (anchorByUrl.has(parentUrl)) { chosen = anchorByUrl.get(parentUrl); break; }
+        }
+      }
+      if (!buckets.has(chosen.url)) buckets.set(chosen.url, []);
+      buckets.get(chosen.url).push(sat);
     }
-    buckets.get(chosen.url).push(sat);
+  } else {
+    // Fallback: chronological
+    for (const sat of satellites) {
+      let chosen = anchors[0];
+      for (const a of anchors) {
+        if (a.firstIdx <= sat.firstIdx) chosen = a;
+        else break;
+      }
+      buckets.get(chosen.url).push(sat);
+    }
   }
   return buckets;
 }

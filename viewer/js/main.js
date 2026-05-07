@@ -18,8 +18,6 @@ function switchToHistory() {
   currentMode = 'history';
   _updateViewUI('history');
 
-  if (prev === 'anchor') teardownAnchorHover();
-
   // Use consistent rendering for all cases (initial + transitions)
   if (prev === null) {
     // Initial load: render directly with no animation
@@ -39,8 +37,6 @@ function switchToTree() {
   currentMode = 'tree';
   _updateViewUI('tree');
   _ensureTree();
-
-  if (prev === 'anchor') teardownAnchorHover();
 
   if (prev === null) {
     applyLayout(computeTreeLayout(HISTORY_DATA, cachedRoot));
@@ -62,19 +58,17 @@ function switchToAnchor() {
   _ensureTree();
 
   if (prev === null) {
-    const { layout, anchorClusters, bounds } = computeAnchorLayout(HISTORY_DATA);
+    const { layout, bounds } = computeAnchorLayout(HISTORY_DATA);
     applyLayout(layout);
     renderAnchorEdgesAndBg(HISTORY_DATA);
     fitToBounds(bounds);
-    setupAnchorHover(anchorClusters);
     return;
   }
   if (prev === 'tree') {
     transitionTreeToAnchor(HISTORY_DATA);
   } else if (prev === 'history') {
-    const { layout: aLayout, anchorClusters, bounds } = computeAnchorLayout(HISTORY_DATA);
-    transitionDirectTo(aLayout, () => renderAnchorEdgesAndBg(HISTORY_DATA), bounds,
-      () => setupAnchorHover(anchorClusters));
+    const { layout: aLayout, bounds } = computeAnchorLayout(HISTORY_DATA);
+    transitionDirectTo(aLayout, () => renderAnchorEdgesAndBg(HISTORY_DATA), bounds);
   }
 }
 
