@@ -83,7 +83,7 @@ function _prepareNodeTween(targetLayout) {
     if (!nodeRegistry.has(id)) continue;
     const { circle, label, meta } = nodeRegistry.get(id);
     if (target.circleClass !== undefined)
-      circle.setAttribute('class', 'node-circle' + (target.circleClass ? ' ' + target.circleClass : ''));
+      circle.setAttribute('class', 'node' + (target.circleClass ? ' ' + target.circleClass : ''));
     if (target.labelText !== undefined) {
       label.setAttribute('x', target.labelX);
       label.setAttribute('y', target.labelY);
@@ -227,10 +227,10 @@ function transitionTreeToAnchor(flat) {
   const { layout: aLayout, anchorNodeIds, anchorClusters, bounds } = computeAnchorLayout(flat);
   const toView = _targetView(bounds);
 
-  // Apply anchor circle styling before animation begins
-  for (const [id] of aLayout) {
+  // Apply anchor circle styling before animation begins, preserving color modifiers
+  for (const [id, target] of aLayout) {
     if (anchorNodeIds.has(id))
-      nodeRegistry.get(id).circle.setAttribute('class', 'node-circle anchored');
+      nodeRegistry.get(id).circle.setAttribute('class', 'node' + (target.circleClass ? ' ' + target.circleClass : ''));
   }
 
   let fromSnap, fromView, fromEdgeOp, emphLayout, restoreLayout;

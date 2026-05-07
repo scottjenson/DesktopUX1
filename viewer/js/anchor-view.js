@@ -53,6 +53,7 @@ function computeAnchorLayout(flat) {
       visitCount: a.visits.length,
       totalDwell: a.totalDwell,
       copyCount: a.copyCount,
+      pasteCount: a.pastesReceived,
     });
   }
   for (const a of anchors) {
@@ -75,8 +76,16 @@ function computeAnchorLayout(flat) {
     const place = placeMap.get(url);
     if (!place) continue;
 
+    // Color is determined at place level so all visits to the same URL share one class
+    const placeHasPaste = (place.pasteCount || 0) > 0;
+    const placeHasCopy  = (place.copyCount  || 0) > 0;
+    const colorClass = placeHasPaste ? ' paste' : placeHasCopy ? ' copy' : '';
+
     if (place.isAnchor) {
       const dwellMin = Math.round(place.totalDwell / 60);
+      const meta2Text = placeHasPaste
+        ? `${place.pasteCount} pastes`
+        : placeHasCopy ? `${place.copyCount} copies` : '';
       layout.set(node.node_id, {
         cx: place.cx, cy: place.cy, r: place.r, opacity: 1,
         labelX: place.cx,
@@ -85,12 +94,12 @@ function computeAnchorLayout(flat) {
         labelFontSize: place.r * ANCHOR_TITLE_SIZE_RATIO,
         labelBaseline: 'central',
         labelText: truncate(placeLabel(place.url, place.page_title), 20),
-        circleClass: 'anchored',
+        circleClass: 'anchor' + colorClass,
         metaText: `${place.visitCount} visits · ${dwellMin}m`,
         metaX: place.cx,
         metaY: place.cy + place.r * ANCHOR_META1_Y_RATIO,
         metaFontSize: place.r * ANCHOR_META_SIZE_RATIO,
-        meta2Text: `${place.copyCount} copies`,
+        meta2Text,
         meta2X: place.cx,
         meta2Y: place.cy + place.r * ANCHOR_META2_Y_RATIO,
       });
@@ -103,7 +112,7 @@ function computeAnchorLayout(flat) {
         labelFontSize: 10,
         labelBaseline: 'auto',
         labelText: '',
-        circleClass: 'satellite-node',
+        circleClass: 'satellite' + colorClass,
         metaText: '',
         metaX: place.cx,
         metaY: place.cy,

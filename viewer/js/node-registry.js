@@ -15,7 +15,7 @@ function initNodeRegistry(flat) {
 
   for (const node of flat) {
     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    circle.setAttribute('class', 'node-circle');
+    circle.setAttribute('class', 'node');
 
     const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     label.setAttribute('class', 'node-label');
@@ -39,14 +39,14 @@ function initNodeRegistry(flat) {
 function applyLayout(layout) {
   for (const [id, target] of layout) {
     if (!nodeRegistry.has(id)) continue;
-    const { circle, label, meta } = nodeRegistry.get(id);
+    const { circle, label, meta, meta2 } = nodeRegistry.get(id);
     const cx = target.cx, cy = target.cy, r = target.r, opacity = target.opacity ?? 1;
 
     circle.setAttribute('cx', cx);
     circle.setAttribute('cy', cy);
     circle.setAttribute('r', r);
     circle.setAttribute('opacity', opacity);
-    circle.setAttribute('class', 'node-circle' + (target.circleClass ? ' ' + target.circleClass : ''));
+    circle.setAttribute('class', 'node' + (target.circleClass ? ' ' + target.circleClass : ''));
 
     label.setAttribute('x', target.labelX);
     label.setAttribute('y', target.labelY);

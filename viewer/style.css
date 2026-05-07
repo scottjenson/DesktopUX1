@@ -74,26 +74,62 @@ footer .right { margin-left: auto; font-variant-numeric: tabular-nums; }
 svg { display: block; width: 100%; height: 100%; }
 
 /* ── Unified node component ─────────────────────────────────────────────── */
-.node-circle {
+.node {
   fill: var(--node-bg);
   stroke: var(--node-border);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
+
+/* ── Size / role modifiers ──────────────────────────────────────────────── */
 /* Root node in tree view */
-.node-circle.root-node {
+.node.root-node {
   stroke: var(--accent);
   stroke-width: 1.5;
 }
 /* Anchor places in anchor view */
-.node-circle.anchored {
+.node.anchor {
   stroke: var(--accent);
   stroke-width: 1.5;
   vector-effect: non-scaling-stroke;
 }
 /* Satellite places in anchor view */
-.node-circle.satellite-node {
+.node.satellite {
   fill: var(--ink-faint);
+  stroke: none;
+}
+/* Ghost nodes — interruption states */
+.node.ghost {
+  fill: var(--node-bg);
+  stroke: #7c3aed;
+  stroke-width: 1.5;
+  stroke-dasharray: 3,3;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.4;
+}
+
+/* ── Color modifiers (copy = green, paste = blue) ───────────────────────── */
+.node.copy {
+  filter: drop-shadow(0 0 4px rgba(34, 197, 94, 0.4));
+}
+.node.anchor.copy {
+  stroke: #22c55e;
+  stroke-width: 1.5;
+}
+.node.satellite.copy {
+  fill: #22c55e;
+  stroke: none;
+}
+
+.node.paste {
+  filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.4));
+}
+.node.anchor.paste {
+  stroke: #3b82f6;
+  stroke-width: 1.5;
+}
+.node.satellite.paste {
+  fill: #3b82f6;
   stroke: none;
 }
 
