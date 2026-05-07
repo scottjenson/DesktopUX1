@@ -58,17 +58,19 @@ function switchToAnchor() {
   _ensureTree();
 
   if (prev === null) {
-    const { layout, bounds } = computeAnchorLayout(HISTORY_DATA);
+    const { anchors, layout, bounds } = computeAnchorLayout(HISTORY_DATA);
     applyLayout(layout);
     renderAnchorEdgesAndBg(HISTORY_DATA);
     fitToBounds(bounds);
+    runPhysicsSettlement(HISTORY_DATA, anchors);
     return;
   }
   if (prev === 'tree') {
     transitionTreeToAnchor(HISTORY_DATA);
   } else if (prev === 'history') {
-    const { layout: aLayout, bounds } = computeAnchorLayout(HISTORY_DATA);
-    transitionDirectTo(aLayout, () => renderAnchorEdgesAndBg(HISTORY_DATA), bounds);
+    const { anchors, layout: aLayout, bounds } = computeAnchorLayout(HISTORY_DATA);
+    transitionDirectTo(aLayout, () => renderAnchorEdgesAndBg(HISTORY_DATA), bounds,
+      () => runPhysicsSettlement(HISTORY_DATA, anchors));
   }
 }
 

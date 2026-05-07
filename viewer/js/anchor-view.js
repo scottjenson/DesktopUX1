@@ -164,7 +164,78 @@ function computeAnchorLayout(flat) {
     maxY: Math.max(...allY) + PAD + 20,
   };
 
-  return { layout, anchorNodeIds, bounds };
+  return { anchors, layout, anchorNodeIds, bounds };
+}
+
+// Physics-based settlement: run one simulation per row so satellites from
+// adjacent anchors in the same row resolve collisions with each other,
+// but nodes in different rows never interact.
+function settleAnchorPhysics(flat, anchors, currentLayout) {
+  const rootAnchor  = anchors.find(a => a.firstIdx === 0);
+  const slackAnchor = anchors.find(a => a.totalDwell > 700 && a !== rootAnchor);
+  const keepAnchor  = anchors.find(a => a.url === 'KEEP');
+  const copyAnchors = anchors.filter(a => a !== rootAnchor && a !== slackAnchor && a !== keepAnchor && a.copyCount > 0);
+
+  const rows = [
+    [rootAnchor, slackAnchor].filter(Boolean),
+    copyAnchors,
+    [keepAnchor].filter(Boolean),
+  ];
+
+  const buckets = assignSatellitesToAnchors(anchors, prepareAnchorData(flat).satellites, flat);
+  const settledLayout = new Map(currentLayout);
+
+  const MAX_DRIFT = 60;
+
+  for (const rowAnchors of rows) {
+    if (rowAnchors.length === 0) continue;
+
+    // Collect all nodes in this row: anchors (fixed) + all their satellites
+    const rowNodes = [];
+
+    for (const a of rowAnchors) {
+      const anchorPos = currentLayout.get(a.visits[0]?.node_id);
+      if (!anchorPos) continue;
+      rowNodes.push({ id: `__anchor_${a.url}__`, x: anchorPos.cx, y: anchorPos.cy, r: a.r, fx: anchorPos.cx, fy: anchorPos.cy });
+
+      for (const sat of (buckets.get(a.url) || [])) {
+        const nodeId = sat.visits[0]?.node_id;
+        const pos = nodeId ? currentLayout.get(nodeId) : null;
+        if (!pos || pos.opacity === 0) continue;
+        rowNodes.push({ id: nodeId, x: pos.cx, y: pos.cy, ox: pos.cx, oy: pos.cy, r: pos.r ?? 8 });
+      }
+    }
+
+    if (rowNodes.length < 2) continue;
+
+    const simulation = d3.forceSimulation(rowNodes)
+      .force('collide', d3.forceCollide(d => d.r + 6).strength(0.9).iterations(4))
+      .force('x', d3.forceX(d => d.ox ?? d.x).strength(0.8))
+      .force('y', d3.forceY(d => d.oy ?? d.y).strength(0.8))
+      .alphaDecay(0.05)
+      .stop();
+
+    for (let i = 0; i < 40; i++) {
+      simulation.tick();
+      rowNodes.forEach(n => {
+        if (n.fx !== null) return;
+        const dx = n.x - n.ox, dy = n.y - n.oy;
+        const dist = Math.hypot(dx, dy);
+        if (dist > MAX_DRIFT) {
+          n.x = n.ox + (dx / dist) * MAX_DRIFT;
+          n.y = n.oy + (dy / dist) * MAX_DRIFT;
+        }
+      });
+    }
+
+    rowNodes.forEach(n => {
+      if (n.id.startsWith('__anchor_')) return;
+      const existing = settledLayout.get(n.id);
+      if (existing) settledLayout.set(n.id, { ...existing, cx: n.x, cy: n.y });
+    });
+  }
+
+  return settledLayout;
 }
 
 function renderAnchorEdgesAndBg(flat) {
@@ -229,21 +300,34 @@ function renderAnchorEdgesAndBg(flat) {
   for (const a of anchors) {
     const sats = buckets.get(a.url) || [];
     sats.forEach((sat, i) => {
-      const half = i % 2 === 0 ? 'top' : 'bottom';
-      const idxInHalf = Math.floor(i / 2);
-      const totalInHalf = Math.ceil(sats.length / 2);
-      let angleStart, angleEnd;
-      if (half === 'top') { angleStart = -160 * Math.PI / 180; angleEnd = -20 * Math.PI / 180; }
-      else                { angleStart = 20 * Math.PI / 180;   angleEnd = 160 * Math.PI / 180; }
-      const t = totalInHalf === 1 ? 0.5 : idxInHalf / Math.max(1, totalInHalf - 1);
-      const angle = angleStart + t * (angleEnd - angleStart);
-      const ringDist = a.r + SATELLITE_RING;
-      const satCx = a.cx + Math.cos(angle) * ringDist;
-      const satCy = a.cy + Math.sin(angle) * ringDist;
+      // Use settled position from currentPositions if available, else fall back to layout formula
+      const nodeId = sat.visits[0]?.node_id;
+      const settled = nodeId ? currentPositions.get(nodeId) : null;
+      let satCx, satCy, startAngle;
+
+      if (settled && settled.opacity > 0) {
+        satCx = settled.cx;
+        satCy = settled.cy;
+        startAngle = Math.atan2(satCy - a.cy, satCx - a.cx);
+      } else {
+        const half = i % 2 === 0 ? 'top' : 'bottom';
+        const idxInHalf = Math.floor(i / 2);
+        const totalInHalf = Math.ceil(sats.length / 2);
+        let angleStart, angleEnd;
+        if (half === 'top') { angleStart = -160 * Math.PI / 180; angleEnd = -20 * Math.PI / 180; }
+        else                { angleStart = 20 * Math.PI / 180;   angleEnd = 160 * Math.PI / 180; }
+        const t = totalInHalf === 1 ? 0.5 : idxInHalf / Math.max(1, totalInHalf - 1);
+        startAngle = angleStart + t * (angleEnd - angleStart);
+        satCx = a.cx + Math.cos(startAngle) * (a.r + SATELLITE_RING);
+        satCy = a.cy + Math.sin(startAngle) * (a.r + SATELLITE_RING);
+      }
+
       const link = document.createElementNS('http://www.w3.org/2000/svg', 'line');
       link.setAttribute('class', 'satellite-link');
-      link.setAttribute('x1', a.cx + Math.cos(angle) * a.r); link.setAttribute('y1', a.cy + Math.sin(angle) * a.r);
-      link.setAttribute('x2', satCx); link.setAttribute('y2', satCy);
+      link.setAttribute('x1', a.cx + Math.cos(startAngle) * a.r);
+      link.setAttribute('y1', a.cy + Math.sin(startAngle) * a.r);
+      link.setAttribute('x2', satCx);
+      link.setAttribute('y2', satCy);
       edgesG.appendChild(link);
     });
   }

@@ -221,10 +221,50 @@ function transitionToHistory(flat) {
   ]);
 }
 
+// ── Physics settlement (runs after any transition to anchor view) ─────────────
+
+function runPhysicsSettlement(flat, anchors) {
+  setTimeout(() => {
+    const settledLayout = settleAnchorPhysics(flat, anchors, currentPositions);
+    const fromSnap = _snapshotPositions();
+    let phaseStart = null;
+
+    const settleTick = (now) => {
+      if (phaseStart === null) phaseStart = now;
+      const t = Math.min((now - phaseStart) / 1000, 1);
+      const et = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+
+      for (const [id, settled] of settledLayout) {
+        if (!nodeRegistry.has(id)) continue;
+        const from = fromSnap.get(id);
+        if (!from) continue;
+        const cx = _lerp(from.cx, settled.cx, et);
+        const cy = _lerp(from.cy, settled.cy, et);
+        const r = from.r;
+        currentPositions.set(id, { cx, cy, r, opacity: from.opacity });
+        const { circle, label, meta, meta2 } = nodeRegistry.get(id);
+        circle.setAttribute('cx', cx);
+        circle.setAttribute('cy', cy);
+        if (label) { label.setAttribute('x', cx); label.setAttribute('y', cy - r * ANCHOR_TITLE_Y_RATIO); }
+        if (meta)  { meta.setAttribute('x', cx);  meta.setAttribute('y',  cy + r * ANCHOR_META1_Y_RATIO); }
+        if (meta2) { meta2.setAttribute('x', cx); meta2.setAttribute('y', cy + r * ANCHOR_META2_Y_RATIO); }
+      }
+
+      if (t < 1) {
+        _rafHandle = requestAnimationFrame(settleTick);
+      } else {
+        _rafHandle = null;
+        renderAnchorEdgesAndBg(flat);
+      }
+    };
+    _rafHandle = requestAnimationFrame(settleTick);
+  }, 100);
+}
+
 // ── Tree → Anchor (the important one) ────────────────────────────────────────
 
 function transitionTreeToAnchor(flat) {
-  const { layout: aLayout, anchorNodeIds, bounds } = computeAnchorLayout(flat);
+  const { anchors, layout: aLayout, anchorNodeIds, bounds } = computeAnchorLayout(flat);
   const toView = _targetView(bounds);
 
   // Apply anchor circle styling before animation begins, preserving color modifiers
@@ -280,7 +320,7 @@ function transitionTreeToAnchor(flat) {
     {
       duration: 300,
       onFrame(t, et) { _applyEdgesFrame(0, 1, et); },
-      onComplete() { },
+      onComplete() { runPhysicsSettlement(flat, anchors); },
     },
   ]);
 }
