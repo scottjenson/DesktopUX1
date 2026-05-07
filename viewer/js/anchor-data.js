@@ -6,6 +6,13 @@ const MIN_ANCHOR_LABEL_PX = 60;
 const MIN_ANCHOR_META_PX = 80;
 
 function prepareAnchorData(flat) {
+  // Count children per node_id to identify hub nodes
+  const childCount = new Map();
+  flat.forEach(n => {
+    if (n.parent_node_id)
+      childCount.set(n.parent_node_id, (childCount.get(n.parent_node_id) || 0) + 1);
+  });
+
   const byUrl = new Map();
   flat.forEach((node, idx) => {
     const url = normUrl(node.url);
@@ -26,7 +33,9 @@ function prepareAnchorData(flat) {
     place.visits.push(node);
     place.visitIndices.push(idx);
     place.totalDwell += node.active_signals.dwell_time_seconds;
-    if (node.is_anchored) place.isAnchored = true;
+    const isHub = (childCount.get(node.node_id) || 0) >= 3;
+    const isHighDwell = node.active_signals.dwell_time_seconds > 700;
+    if (node.is_anchored || isHub || isHighDwell) place.isAnchored = true;
     if (node.active_signals.clipboard_copy_event) {
       place.copyCount++;
       place.hasCopy = true;
@@ -105,18 +114,23 @@ function assignSatellitesToAnchors(anchors, satellites, flat) {
 
   if (flat) {
     const nodeById = new Map(flat.map(n => [n.node_id, n]));
+
     for (const sat of satellites) {
-      let chosen = anchors[0];
+      let chosen = null;
+
+      // Walk the full ancestor chain of each visit to find the nearest anchor ancestor
+      outer:
       for (const idx of sat.visitIndices) {
-        const node = flat[idx];
-        const parent = node?.parent_node_id ? nodeById.get(node.parent_node_id) : null;
-        if (parent) {
-          const parentUrl = normUrl(parent.url);
-          if (anchorByUrl.has(parentUrl)) { chosen = anchorByUrl.get(parentUrl); break; }
+        let cur = flat[idx].parent_node_id ? nodeById.get(flat[idx].parent_node_id) : null;
+        while (cur) {
+          const url = normUrl(cur.url);
+          if (anchorByUrl.has(url)) { chosen = anchorByUrl.get(url); break outer; }
+          cur = cur.parent_node_id ? nodeById.get(cur.parent_node_id) : null;
         }
       }
-      if (!buckets.has(chosen.url)) buckets.set(chosen.url, []);
-      buckets.get(chosen.url).push(sat);
+
+      if (chosen) buckets.get(chosen.url).push(sat);
+      // If no anchor ancestor found, sat is an orphan and excluded from the view
     }
   } else {
     // Fallback: chronological

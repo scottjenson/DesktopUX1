@@ -78,10 +78,32 @@ function computeAnchorLayout(flat) {
   const layout = new Map();
   const anchorNodeIds = new Set();
 
-  for (const node of flat) {
+  // Precompute anchor positions by firstIdx for collapsing orphan nodes
+  const anchorsSortedByIdx = [...anchors].sort((a, b) => a.firstIdx - b.firstIdx);
+  function nearestAnchorPos(nodeIdx) {
+    let a = anchorsSortedByIdx[0];
+    for (const candidate of anchorsSortedByIdx) {
+      if (candidate.firstIdx <= nodeIdx) a = candidate;
+      else break;
+    }
+    return { cx: a.cx, cy: a.cy };
+  }
+
+  flat.forEach((node, nodeIdx) => {
     const url = normUrl(node.url);
     const place = placeMap.get(url);
-    if (!place) continue;
+    if (!place) {
+      // Orphan node: no anchor ancestor. Collapse it invisibly toward the nearest anchor.
+      const pos = nearestAnchorPos(nodeIdx);
+      layout.set(node.node_id, {
+        cx: pos.cx, cy: pos.cy, r: 0, opacity: 0,
+        labelText: '', metaText: '', meta2Text: '', circleClass: '',
+        labelX: pos.cx, labelY: pos.cy, labelAnchor: 'middle', labelFontSize: 0,
+        metaX: pos.cx, metaY: pos.cy, metaFontSize: 0,
+        meta2X: pos.cx, meta2Y: pos.cy,
+      });
+      return;
+    }
 
     // Color determined at place level so all visits to same URL share one class
     const placeHasPaste = (place.pasteCount || 0) > 0;
@@ -113,7 +135,7 @@ function computeAnchorLayout(flat) {
     });
 
     if (place.isAnchor) anchorNodeIds.add(node.node_id);
-  }
+  });
 
   const allX = anchors.flatMap(a => [a.cx - a.r - SATELLITE_RING, a.cx + a.r + SATELLITE_RING]);
   const allY = anchors.flatMap(a => [a.cy - a.r - SATELLITE_RING, a.cy + a.r + SATELLITE_RING]);
