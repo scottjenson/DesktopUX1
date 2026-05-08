@@ -251,17 +251,34 @@ function settleAnchorPhysics(flat, anchors, currentLayout) {
   return settledLayout;
 }
 
-// Returns the point on the edge of a rounded rect (centered at cx,cy) in direction `angle`.
-// Shrinks by corner radius so returned points never land in the rounded-corner clipped region.
-function rectEdgePoint(cx, cy, r, angle) {
+// Returns the point on the visible border of a rounded rect (centered at cx,cy) in
+// direction `angle`. buffer > 0 moves the point outward past the border by that many
+// SVG units — use this to float arrowheads just outside the node.
+function rectEdgePoint(cx, cy, r, angle, buffer = 0) {
+  const hw = r * NODE_W_RATIO / 2;
+  const hh = r * NODE_H_RATIO / 2;
   const rx = r * NODE_RX_RATIO;
-  const hw = r * NODE_W_RATIO / 2 - rx;
-  const hh = r * NODE_H_RATIO / 2 - rx;
   const cos = Math.cos(angle), sin = Math.sin(angle);
-  const tx = Math.abs(cos) > 1e-9 ? Math.abs(hw / cos) : Infinity;
-  const ty = Math.abs(sin) > 1e-9 ? Math.abs(hh / sin) : Infinity;
-  const t = Math.min(tx, ty);
-  return { x: cx + cos * t, y: cy + sin * t };
+
+  // Time to hit each straight edge from the center
+  const tx = Math.abs(cos) > 1e-9 ? hw / Math.abs(cos) : Infinity;
+  const ty = Math.abs(sin) > 1e-9 ? hh / Math.abs(sin) : Infinity;
+  const t  = Math.min(tx, ty);
+  const px = cos * t, py = sin * t;
+
+  let borderT;
+  if (Math.abs(px) > hw - rx + 0.001 && Math.abs(py) > hh - rx + 0.001) {
+    // Ray lands in a corner region — intersect with the corner arc circle instead
+    const ccx = Math.sign(cos) * (hw - rx);
+    const ccy = Math.sign(sin) * (hh - rx);
+    const dot  = cos * ccx + sin * ccy;
+    const disc = dot * dot - (ccx * ccx + ccy * ccy - rx * rx);
+    borderT = dot + Math.sqrt(Math.max(0, disc));
+  } else {
+    borderT = t;
+  }
+
+  return { x: cx + cos * (borderT + buffer), y: cy + sin * (borderT + buffer) };
 }
 
 function renderAnchorEdgesAndBg(flat) {
@@ -308,20 +325,17 @@ function renderAnchorEdgesAndBg(flat) {
     const [fromUrl, toUrl] = key.split('||');
     const from = anchorByUrl.get(fromUrl), to = anchorByUrl.get(toUrl);
     if (!from || !to) continue;
-    const dx = Math.abs(to.cx - from.cx);
-    const dy = to.cy - from.cy;
-    const horizontalOffset = dy > 0 ? 60 : -60;
-    const curveHeight = Math.min(100, 40 + Math.abs(dx) * 0.1);
+    const ARROW_BUFFER = 2;  // px outside border where arrowhead tip sits
     const fromAngle = Math.atan2(to.cy - from.cy, to.cx - from.cx);
     const toAngle = fromAngle + Math.PI;
     const p0 = rectEdgePoint(from.cx, from.cy, from.r, fromAngle);
-    const p1 = rectEdgePoint(to.cx, to.cy, to.r, toAngle);
-    const midX = (p0.x + p1.x) / 2;
-    const midY = (p0.y + p1.y) / 2 + horizontalOffset + (dy > 0 ? curveHeight : -curveHeight);
+    const p1 = rectEdgePoint(to.cx, to.cy, to.r, toAngle, ARROW_BUFFER);
+    const isCarrier = rec.carrierCount > 0;
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('class', 'anchor-edge' + (rec.carrierCount > 0 ? ' carrier' : ''));
-    path.setAttribute('d', `M ${p0.x} ${p0.y} Q ${midX} ${midY} ${p1.x} ${p1.y}`);
+    path.setAttribute('class', 'anchor-edge' + (isCarrier ? ' carrier' : ''));
+    path.setAttribute('d', `M ${p0.x} ${p0.y} L ${p1.x} ${p1.y}`);
     path.setAttribute('stroke-width', Math.min(6, 1 + rec.count * 0.8));
+    path.setAttribute('marker-end', `url(#arrowhead-${isCarrier ? 'carrier' : 'accent'})`);
     edgesG.appendChild(path);
   }
 
