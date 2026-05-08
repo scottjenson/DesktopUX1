@@ -299,11 +299,11 @@ function transitionTreeToAnchor(flat) {
         _applyViewFrame(fromView, toView, et);
       },
     },
-    // Phase 3: restore full opacity on all nodes
+    // Phase 3: restore full opacity on anchor nodes only (satellites must stay at 0)
     {
       duration: 160,
       onStart() {
-        restoreLayout = _opacityLayout(() => 1);
+        restoreLayout = _opacityLayout(id => anchorNodeIds.has(id) ? 1 : 0);
         fromSnap      = _prepareNodeTween(restoreLayout);
       },
       onFrame(t, et) { _applyNodeFrame(fromSnap, restoreLayout, et); },

@@ -114,7 +114,7 @@ function init() {
   const renderWhenReady = () => {
     const stage = document.getElementById('stage');
     if (stage && stage.clientWidth > 0 && stage.clientHeight > 0) {
-      switchToHistory();
+      document.fonts.ready.then(() => switchToHistory());
     } else {
       requestAnimationFrame(renderWhenReady);
     }
