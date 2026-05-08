@@ -114,14 +114,15 @@ function _prepareNodeTween(targetLayout) {
 function _applyNodeFrame(fromSnap, targetLayout, et) {
   for (const [id, target] of targetLayout) {
     if (!nodeRegistry.has(id)) continue;
-    const from = fromSnap.get(id) || { cx: 0, cy: 0, r: NODE_R, opacity: 1 };
-    const cx      = _lerp(from.cx,          target.cx,          et);
-    const cy      = _lerp(from.cy,          target.cy,          et);
-    const r       = _lerp(from.r,           target.r,           et);
+    const from = fromSnap.get(id) || { cx: 0, cy: 0, r: NODE_R, opacity: 1, w: NODE_R * NODE_W_RATIO };
+    const cx      = _lerp(from.cx,           target.cx,           et);
+    const cy      = _lerp(from.cy,           target.cy,           et);
+    const r       = _lerp(from.r,            target.r,            et);
     const opacity = _lerp(from.opacity ?? 1, target.opacity ?? 1, et);
-    currentPositions.set(id, { cx, cy, r, opacity });
+    const w       = _lerp(from.w ?? from.r * NODE_W_RATIO, target.w ?? target.r * NODE_W_RATIO, et);
+    currentPositions.set(id, { cx, cy, r, opacity, w });
     const { circle, label, meta, meta2 } = nodeRegistry.get(id);
-    _setRectAttrs(circle, cx, cy, r);
+    _setRectAttrs(circle, cx, cy, r, w);
     circle.setAttribute('opacity', opacity);
     label.setAttribute('opacity', opacity);
     if (meta) meta.setAttribute('opacity', opacity);
@@ -150,7 +151,7 @@ function _applyEdgesFrame(fromOp, toOp, et) {
 function _opacityLayout(opacityFn) {
   const layout = new Map();
   for (const [id, pos] of currentPositions)
-    layout.set(id, { cx: pos.cx, cy: pos.cy, r: pos.r, opacity: opacityFn(id) });
+    layout.set(id, { cx: pos.cx, cy: pos.cy, r: pos.r, opacity: opacityFn(id), w: pos.w });
   return layout;
 }
 

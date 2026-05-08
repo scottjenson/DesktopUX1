@@ -7,11 +7,11 @@ let nodeRegistry = new Map(); // node_id → { circle, label, meta }
 // Live positions — updated every animation frame, read by transitions.js
 let currentPositions = new Map(); // node_id → { cx, cy, r, opacity }
 
-function _setRectAttrs(el, cx, cy, r) {
-  const w = r * NODE_W_RATIO, h = r * NODE_H_RATIO;
-  el.setAttribute('x', cx - w / 2);
+function _setRectAttrs(el, cx, cy, r, w) {
+  const actualW = w ?? r * NODE_W_RATIO, h = r * NODE_H_RATIO;
+  el.setAttribute('x', cx - actualW / 2);
   el.setAttribute('y', cy - h / 2);
-  el.setAttribute('width', w);
+  el.setAttribute('width', actualW);
   el.setAttribute('height', h);
   el.setAttribute('rx', r * NODE_RX_RATIO);
 }
@@ -40,7 +40,7 @@ function initNodeRegistry(flat) {
     nodesG.appendChild(meta);
     nodesG.appendChild(meta2);
     nodeRegistry.set(node.node_id, { circle, label, meta, meta2 });
-    currentPositions.set(node.node_id, { cx: 0, cy: 0, r: NODE_R, opacity: 1 });
+    currentPositions.set(node.node_id, { cx: 0, cy: 0, r: NODE_R, opacity: 1, w: NODE_R * NODE_W_RATIO });
   }
 }
 
@@ -50,8 +50,9 @@ function applyLayout(layout) {
     if (!nodeRegistry.has(id)) continue;
     const { circle, label, meta, meta2 } = nodeRegistry.get(id);
     const cx = target.cx, cy = target.cy, r = target.r, opacity = target.opacity ?? 1;
+    const w  = target.w ?? r * NODE_W_RATIO;
 
-    _setRectAttrs(circle, cx, cy, r);
+    _setRectAttrs(circle, cx, cy, r, w);
     circle.setAttribute('opacity', opacity);
     circle.setAttribute('class', 'node' + (target.circleClass ? ' ' + target.circleClass : ''));
 
@@ -75,6 +76,6 @@ function applyLayout(layout) {
     meta2.setAttribute('opacity', opacity);
     if (target.metaFontSize != null) meta2.setAttribute('font-size', target.metaFontSize);
 
-    currentPositions.set(id, { cx, cy, r, opacity });
+    currentPositions.set(id, { cx, cy, r, opacity, w });
   }
 }

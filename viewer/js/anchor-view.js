@@ -14,6 +14,41 @@ const LAYOUT_CENTER_X  = 500;
 const LAYOUT_COPY_GAP  = 420;
 const LAYOUT_TOP_OFFSET  = 240;  // root/slack offset from center
 
+// ── Text measurement ──────────────────────────────────────────────────────────
+
+const NODE_MAX_W    = 220;  // px cap on node width
+const NODE_LABEL_H_PAD = 24;  // total horizontal padding inside node
+
+let _measCtx = null;
+function _textW(text, fontSize) {
+  if (!_measCtx) _measCtx = document.createElement('canvas').getContext('2d');
+  _measCtx.font = `400 ${fontSize}px Inter, sans-serif`;
+  return _measCtx.measureText(text).width;
+}
+
+// Binary-search truncation: returns longest prefix of text that fits in maxPx at fontSize.
+function _truncateFit(text, maxPx, fontSize) {
+  if (_textW(text, fontSize) <= maxPx) return text;
+  let lo = 0, hi = text.length;
+  while (lo < hi - 1) {
+    const mid = (lo + hi) >> 1;
+    if (_textW(text.slice(0, mid) + '…', fontSize) <= maxPx) lo = mid; else hi = mid;
+  }
+  return text.slice(0, lo) + '…';
+}
+
+// Compute node width from its text content, clamped to [r*2, NODE_MAX_W].
+function _nodeW(r, labelText, metaText, meta2Text) {
+  const tSize = r * ANCHOR_TITLE_SIZE_RATIO;
+  const mSize = r * ANCHOR_META_SIZE_RATIO;
+  const needed = Math.max(
+    _textW(labelText,  tSize),
+    _textW(metaText,   mSize),
+    meta2Text ? _textW(meta2Text, mSize) : 0
+  ) + NODE_LABEL_H_PAD;
+  return Math.max(r * 2, Math.min(needed, NODE_MAX_W));
+}
+
 // Returns { layout, anchorNodeIds, bounds }
 function computeAnchorLayout(flat) {
   const { anchors, satellites } = prepareAnchorData(flat);
@@ -79,16 +114,20 @@ function computeAnchorLayout(flat) {
     });
   }
 
-  // Build place map — anchors carry extra display data
+  // Build place map — anchors carry extra display data including computed width
   const placeMap = new Map();
   for (const a of anchors) {
+    const dwellMin   = Math.round(a.totalDwell / 60);
+    const visitLabel = `${a.visits.length} visit${a.visits.length !== 1 ? 's' : ''} · ${dwellMin}m`;
+    const hasPaste   = (a.pastesReceived || 0) > 0, hasCopy = (a.copyCount || 0) > 0;
+    const meta2      = hasPaste ? `${a.pastesReceived} pastes` : hasCopy ? `${a.copyCount} copies` : '';
+    const rawLabel   = placeLabel(a.url, a.page_title);
+    const w          = _nodeW(a.r, rawLabel, visitLabel, meta2);
     placeMap.set(a.url, {
       cx: a.cx, cy: a.cy, r: a.r, isAnchor: true,
       url: a.url, page_title: a.page_title,
-      visitCount: a.visits.length,
-      totalDwell: a.totalDwell,
-      copyCount: a.copyCount,
-      pasteCount: a.pastesReceived,
+      visitCount: a.visits.length, totalDwell: a.totalDwell,
+      copyCount: a.copyCount, pasteCount: a.pastesReceived, w,
     });
   }
   for (const a of anchors) {
@@ -96,10 +135,8 @@ function computeAnchorLayout(flat) {
       placeMap.set(sat.url, {
         cx: sat.cx, cy: sat.cy, r: sat.r, isAnchor: false,
         url: sat.url, page_title: sat.page_title,
-        visitCount: sat.visits.length,
-        totalDwell: sat.totalDwell,
-        copyCount: sat.copyCount,
-        pasteCount: sat.pastesReceived,
+        visitCount: sat.visits.length, totalDwell: sat.totalDwell,
+        copyCount: sat.copyCount, pasteCount: sat.pastesReceived,
       });
     }
   }
@@ -140,21 +177,27 @@ function computeAnchorLayout(flat) {
     const placeHasCopy  = (place.copyCount  || 0) > 0;
     const colorClass = placeHasPaste ? ' paste' : placeHasCopy ? ' copy' : '';
 
-    const dwellMin = Math.round(place.totalDwell / 60);
-    const meta2Text = placeHasPaste
+    const dwellMin   = Math.round(place.totalDwell / 60);
+    const meta2Text  = placeHasPaste
       ? `${place.pasteCount} pastes`
       : placeHasCopy ? `${place.copyCount} copies` : '';
     const visitLabel = `${place.visitCount} visit${place.visitCount !== 1 ? 's' : ''} · ${dwellMin}m`;
 
-    const isAnchor = place.isAnchor;
+    const isAnchor  = place.isAnchor;
+    const nodeW     = isAnchor ? (place.w ?? place.r * NODE_W_RATIO) : place.r * NODE_W_RATIO;
+    const rawLabel  = placeLabel(place.url, place.page_title);
+    const labelText = isAnchor
+      ? _truncateFit(rawLabel, nodeW - NODE_LABEL_H_PAD, place.r * ANCHOR_TITLE_SIZE_RATIO)
+      : '';
+
     layout.set(node.node_id, {
-      cx: place.cx, cy: place.cy, r: place.r, opacity: isAnchor ? 1 : 0,
+      cx: place.cx, cy: place.cy, r: place.r, opacity: isAnchor ? 1 : 0, w: nodeW,
       labelX: place.cx,
       labelY: place.cy - place.r * ANCHOR_TITLE_Y_RATIO,
       labelAnchor: 'middle',
       labelFontSize: isAnchor ? place.r * ANCHOR_TITLE_SIZE_RATIO : 0,
       labelBaseline: 'central',
-      labelText: isAnchor ? truncate(placeLabel(place.url, place.page_title), 20) : '',
+      labelText,
       circleClass: (isAnchor ? 'anchor' : '') + colorClass,
       metaText: isAnchor ? visitLabel : '',
       metaX: place.cx,
@@ -254,8 +297,8 @@ function settleAnchorPhysics(flat, anchors, currentLayout) {
 // Returns the point on the visible border of a rounded rect (centered at cx,cy) in
 // direction `angle`. buffer > 0 moves the point outward past the border by that many
 // SVG units — use this to float arrowheads just outside the node.
-function rectEdgePoint(cx, cy, r, angle, buffer = 0) {
-  const hw = r * NODE_W_RATIO / 2;
+function rectEdgePoint(cx, cy, r, angle, buffer = 0, hwOverride = null) {
+  const hw = hwOverride !== null ? hwOverride : r * NODE_W_RATIO / 2;
   const hh = r * NODE_H_RATIO / 2;
   const rx = r * NODE_RX_RATIO;
   const cos = Math.cos(angle), sin = Math.sin(angle);
@@ -321,6 +364,11 @@ function renderAnchorEdgesAndBg(flat) {
   const anchorUrls = new Set(anchors.map(a => a.url));
   const transitions = computeAnchorEdges(flat, anchorUrls);
   const anchorByUrl = new Map(anchors.map(a => [a.url, a]));
+  // Get computed hw for each anchor from currentPositions (set during layout)
+  for (const a of anchors) {
+    const pos = currentPositions.get(a.visits[0]?.node_id);
+    a.hw = pos?.w ? pos.w / 2 : a.r * NODE_W_RATIO / 2;
+  }
   for (const [key, rec] of transitions) {
     const [fromUrl, toUrl] = key.split('||');
     const from = anchorByUrl.get(fromUrl), to = anchorByUrl.get(toUrl);
@@ -328,8 +376,8 @@ function renderAnchorEdgesAndBg(flat) {
     const ARROW_BUFFER = 2;  // px outside border where arrowhead tip sits
     const fromAngle = Math.atan2(to.cy - from.cy, to.cx - from.cx);
     const toAngle = fromAngle + Math.PI;
-    const p0 = rectEdgePoint(from.cx, from.cy, from.r, fromAngle);
-    const p1 = rectEdgePoint(to.cx, to.cy, to.r, toAngle, ARROW_BUFFER);
+    const p0 = rectEdgePoint(from.cx, from.cy, from.r, fromAngle, 0, from.hw);
+    const p1 = rectEdgePoint(to.cx, to.cy, to.r, toAngle, ARROW_BUFFER, to.hw);
     const isCarrier = rec.carrierCount > 0;
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('class', 'anchor-edge' + (isCarrier ? ' carrier' : ''));
@@ -370,10 +418,10 @@ function _hoverEdgeData(anchors, flat) {
 }
 
 // Run D3 to steady state; returns Map<satUrl → {cx, cy}>.
-// anchorUrl identifies which anchor we're expanding so we can find its edge directions.
-function _hoverSettle(anchorPos, anchorUrl, sats, allEdgeData) {
+// anchorW and satWidths supply computed node widths for accurate collision radii.
+function _hoverSettle(anchorPos, anchorW, anchorUrl, sats, allEdgeData, satWidths) {
   const acx = anchorPos.cx, acy = anchorPos.cy;
-  const anchorHW = anchorPos.r * NODE_W_RATIO / 2 + 14;
+  const anchorHW = anchorW / 2 + 14;
 
   // Directions FROM this anchor toward each connected anchor (both incoming and outgoing edges)
   const edgeDirs = allEdgeData
@@ -383,10 +431,12 @@ function _hoverSettle(anchorPos, anchorUrl, sats, allEdgeData) {
       : { nx: -e.nx, ny: -e.ny }); // incoming: direction back toward source
 
   const nodes = sats.map((sat, i) => {
-    const angle = (i / sats.length) * 2 * Math.PI;
-    const startR = anchorHW + sat.r * NODE_W_RATIO / 2 + 10;
+    const sw  = satWidths?.get(sat.url) ?? sat.r * NODE_W_RATIO;
+    const hw  = sw / 2;
+    const angle  = (i / sats.length) * 2 * Math.PI;
+    const startR = anchorHW + hw + 10;
     return { url: sat.url, x: acx + Math.cos(angle) * startR, y: acy + Math.sin(angle) * startR,
-             hw: sat.r * NODE_W_RATIO / 2, vx: 0, vy: 0 };
+             hw, vx: 0, vy: 0 };
   });
 
   function forceAnchorClear(alpha) {
@@ -431,7 +481,7 @@ function _hoverSettle(anchorPos, anchorUrl, sats, allEdgeData) {
     }
   }
 
-  const avgSatHW = nodes.reduce((s, n) => s + n.hw, 0) / (nodes.length || 1);
+  const avgSatHW = nodes.length ? nodes.reduce((s, n) => s + n.hw, 0) / nodes.length : anchorHW;
   const targetR  = anchorHW + avgSatHW + 30;
 
   const sim = d3.forceSimulation(nodes)
@@ -467,10 +517,11 @@ function setupAnchorHover(flat, anchors, buckets) {
 
     const sats = buckets.get(a.url) || [];
 
-    const w = anchorPos.r * NODE_W_RATIO, h = anchorPos.r * NODE_H_RATIO;
+    const hitW = (currentPositions.get(a.visits[0]?.node_id)?.w ?? anchorPos.r * NODE_W_RATIO);
+    const h = anchorPos.r * NODE_H_RATIO;
     const hit = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    hit.setAttribute('x', anchorPos.cx - w / 2);  hit.setAttribute('y', anchorPos.cy - h / 2);
-    hit.setAttribute('width', w);                  hit.setAttribute('height', h);
+    hit.setAttribute('x', anchorPos.cx - hitW / 2);  hit.setAttribute('y', anchorPos.cy - h / 2);
+    hit.setAttribute('width', hitW);                  hit.setAttribute('height', h);
     hit.setAttribute('rx', anchorPos.r * NODE_RX_RATIO);
     hit.setAttribute('fill', 'transparent');        hit.setAttribute('stroke', 'none');
     hit.style.cursor = 'pointer';
@@ -482,7 +533,22 @@ function setupAnchorHover(flat, anchors, buckets) {
       _hoverLivePos  = new Map();
       if (!sats.length) return;
 
-      const settled = _hoverSettle(anchorPos, a.url, sats, allEdgeData);
+      // Pre-compute per-satellite widths and pixel-truncated labels
+      const satInfo = new Map();
+      for (const sat of sats) {
+        const sr       = sat.r;
+        const rawLabel = placeLabel(sat.url, sat.page_title);
+        const dwellMin = Math.round(sat.totalDwell / 60);
+        const metaText = `${sat.visits.length} visit${sat.visits.length !== 1 ? 's' : ''} · ${dwellMin}m`;
+        const sw       = _nodeW(sr, rawLabel, metaText, '');
+        const labelText = _truncateFit(rawLabel, sw - NODE_LABEL_H_PAD, sr * ANCHOR_TITLE_SIZE_RATIO);
+        satInfo.set(sat.url, { sw, labelText, metaText });
+      }
+      const satWidths = new Map([...satInfo].map(([url, { sw }]) => [url, sw]));
+
+      const anchorNodePos = currentPositions.get(a.visits[0]?.node_id);
+      const anchorW = anchorNodePos?.w ?? anchorPos.r * NODE_W_RATIO;
+      const settled = _hoverSettle(anchorPos, anchorW, a.url, sats, allEdgeData, satWidths);
       const acx = anchorPos.cx, acy = anchorPos.cy;
 
       // Lines first (behind rects)
@@ -491,13 +557,14 @@ function setupAnchorHover(flat, anchors, buckets) {
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         line.setAttribute('class', 'satellite-link');
         overlay.appendChild(line);
-        _hoverElements.push({ sat, line, rect: null, label: null, meta: null });
+        _hoverElements.push({ sat, line, rect: null, label: null, meta: null, sw: satInfo.get(sat.url)?.sw ?? sat.r * NODE_W_RATIO });
       }
       // Rects + labels on top
       for (let i = 0; i < _hoverElements.length; i++) {
-        const { sat } = _hoverElements[i];
-        const sr = sat.r, sw = sr * NODE_W_RATIO, sh = sr * NODE_H_RATIO;
+        const { sat, sw } = _hoverElements[i];
+        const sr = sat.r, sh = sr * NODE_H_RATIO;
         const cc = (sat.pastesReceived > 0) ? ' paste' : (sat.copyCount > 0) ? ' copy' : '';
+        const { labelText, metaText } = satInfo.get(sat.url) || {};
 
         const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
         rect.setAttribute('class', 'node' + cc);
@@ -510,15 +577,14 @@ function setupAnchorHover(flat, anchors, buckets) {
         label.setAttribute('text-anchor', 'middle');
         label.setAttribute('dominant-baseline', 'central');
         label.setAttribute('font-size', sr * ANCHOR_TITLE_SIZE_RATIO);
-        label.textContent = truncate(placeLabel(sat.url, sat.page_title), 20);
+        label.textContent = labelText ?? '';
         overlay.appendChild(label);
 
-        const dwellMin = Math.round(sat.totalDwell / 60);
         const meta = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         meta.setAttribute('class', 'node-meta');
         meta.setAttribute('text-anchor', 'middle');
         meta.setAttribute('font-size', sr * ANCHOR_META_SIZE_RATIO);
-        meta.textContent = `${sat.visits.length} visit${sat.visits.length !== 1 ? 's' : ''} · ${dwellMin}m`;
+        meta.textContent = metaText ?? '';
         overlay.appendChild(meta);
 
         _hoverElements[i] = { ..._hoverElements[i], rect, label, meta };
@@ -531,12 +597,12 @@ function setupAnchorHover(flat, anchors, buckets) {
         const t  = Math.min((now - t0) / APPEAR_MS, 1);
         const et = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
 
-        for (const { sat, rect, label, meta, line } of _hoverElements) {
+        for (const { sat, rect, label, meta, line, sw } of _hoverElements) {
           const tgt = settled.get(sat.url);
           if (!tgt || !rect) continue;
           const cx = _lerp(acx, tgt.cx, et), cy = _lerp(acy, tgt.cy, et);
           const op = et;
-          const sr = sat.r, sw = sr * NODE_W_RATIO, sh = sr * NODE_H_RATIO;
+          const sr = sat.r, sh = sr * NODE_H_RATIO;
 
           rect.setAttribute('x', cx - sw / 2); rect.setAttribute('y', cy - sh / 2);
           rect.setAttribute('opacity', op);
@@ -546,8 +612,8 @@ function setupAnchorHover(flat, anchors, buckets) {
           meta.setAttribute('opacity', op);
 
           const ang = Math.atan2(cy - acy, cx - acx);
-          const p0  = rectEdgePoint(acx, acy, anchorPos.r, ang);
-          const p1  = rectEdgePoint(cx,  cy,  sr,          ang + Math.PI);
+          const p0  = rectEdgePoint(acx, acy, anchorPos.r, ang, 0, anchorW / 2);
+          const p1  = rectEdgePoint(cx,  cy,  sr,          ang + Math.PI, 0, sw / 2);
           line.setAttribute('x1', p0.x); line.setAttribute('y1', p0.y);
           line.setAttribute('x2', p1.x); line.setAttribute('y2', p1.y);
           line.setAttribute('opacity', op * 0.7);
@@ -575,11 +641,11 @@ function setupAnchorHover(flat, anchors, buckets) {
         const et = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
         const op = 1 - et;
 
-        for (const { sat, rect, label, meta, line } of elemSnap) {
+        for (const { sat, rect, label, meta, line, sw } of elemSnap) {
           if (!rect) continue;
           const from = fromPos.get(sat.url) || { cx: acx, cy: acy };
           const cx = _lerp(from.cx, acx, et), cy = _lerp(from.cy, acy, et);
-          const sr = sat.r, sw = sr * NODE_W_RATIO, sh = sr * NODE_H_RATIO;
+          const sr = sat.r, sh = sr * NODE_H_RATIO;
 
           rect.setAttribute('x', cx - sw / 2); rect.setAttribute('y', cy - sh / 2);
           rect.setAttribute('opacity', op);
@@ -589,8 +655,8 @@ function setupAnchorHover(flat, anchors, buckets) {
           meta.setAttribute('opacity', op);
 
           const ang = Math.atan2(cy - acy, cx - acx);
-          const p0  = rectEdgePoint(acx, acy, anchorPos.r, ang);
-          const p1  = rectEdgePoint(cx,  cy,  sr,          ang + Math.PI);
+          const p0  = rectEdgePoint(acx, acy, anchorPos.r, ang, 0, anchorW / 2);
+          const p1  = rectEdgePoint(cx,  cy,  sr,          ang + Math.PI, 0, sw / 2);
           line.setAttribute('x1', p0.x); line.setAttribute('y1', p0.y);
           line.setAttribute('x2', p1.x); line.setAttribute('y2', p1.y);
           line.setAttribute('opacity', op * 0.7);
