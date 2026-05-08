@@ -121,9 +121,7 @@ function _applyNodeFrame(fromSnap, targetLayout, et) {
     const opacity = _lerp(from.opacity ?? 1, target.opacity ?? 1, et);
     currentPositions.set(id, { cx, cy, r, opacity });
     const { circle, label, meta, meta2 } = nodeRegistry.get(id);
-    circle.setAttribute('cx', cx);
-    circle.setAttribute('cy', cy);
-    circle.setAttribute('r', r);
+    _setRectAttrs(circle, cx, cy, r);
     circle.setAttribute('opacity', opacity);
     label.setAttribute('opacity', opacity);
     if (meta) meta.setAttribute('opacity', opacity);
@@ -243,8 +241,7 @@ function runPhysicsSettlement(flat, anchors) {
         const r = from.r;
         currentPositions.set(id, { cx, cy, r, opacity: from.opacity });
         const { circle, label, meta, meta2 } = nodeRegistry.get(id);
-        circle.setAttribute('cx', cx);
-        circle.setAttribute('cy', cy);
+        _setRectAttrs(circle, cx, cy, r);
         if (label) { label.setAttribute('x', cx); label.setAttribute('y', cy - r * ANCHOR_TITLE_Y_RATIO); }
         if (meta)  { meta.setAttribute('x', cx);  meta.setAttribute('y',  cy + r * ANCHOR_META1_Y_RATIO); }
         if (meta2) { meta2.setAttribute('x', cx); meta2.setAttribute('y', cy + r * ANCHOR_META2_Y_RATIO); }

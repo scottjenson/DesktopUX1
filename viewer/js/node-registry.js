@@ -7,6 +7,15 @@ let nodeRegistry = new Map(); // node_id → { circle, label, meta }
 // Live positions — updated every animation frame, read by transitions.js
 let currentPositions = new Map(); // node_id → { cx, cy, r, opacity }
 
+function _setRectAttrs(el, cx, cy, r) {
+  const w = r * NODE_W_RATIO, h = r * NODE_H_RATIO;
+  el.setAttribute('x', cx - w / 2);
+  el.setAttribute('y', cy - h / 2);
+  el.setAttribute('width', w);
+  el.setAttribute('height', h);
+  el.setAttribute('rx', r * NODE_RX_RATIO);
+}
+
 function initNodeRegistry(flat) {
   const nodesG = document.getElementById('nodes');
   nodesG.innerHTML = '';
@@ -14,7 +23,7 @@ function initNodeRegistry(flat) {
   currentPositions.clear();
 
   for (const node of flat) {
-    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     circle.setAttribute('class', 'node');
 
     const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -42,9 +51,7 @@ function applyLayout(layout) {
     const { circle, label, meta, meta2 } = nodeRegistry.get(id);
     const cx = target.cx, cy = target.cy, r = target.r, opacity = target.opacity ?? 1;
 
-    circle.setAttribute('cx', cx);
-    circle.setAttribute('cy', cy);
-    circle.setAttribute('r', r);
+    _setRectAttrs(circle, cx, cy, r);
     circle.setAttribute('opacity', opacity);
     circle.setAttribute('class', 'node' + (target.circleClass ? ' ' + target.circleClass : ''));
 

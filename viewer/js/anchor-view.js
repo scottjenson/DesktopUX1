@@ -4,6 +4,16 @@ const ANCHOR_TITLE_Y_RATIO    = 0.15;
 const ANCHOR_META1_Y_RATIO    = 0.20;
 const ANCHOR_META2_Y_RATIO    = 0.38;
 
+// Rounded rectangle sizing (width = r * W, height = r * H, corner = r * RX)
+const NODE_W_RATIO  = 3.2;
+const NODE_H_RATIO  = 1.8;
+const NODE_RX_RATIO = 0.25;
+
+// Layout constants — shared by computeAnchorLayout and renderAnchorEdgesAndBg
+const LAYOUT_CENTER_X  = 500;
+const LAYOUT_COPY_GAP  = 420;
+const LAYOUT_TOP_OFFSET  = 240;  // root/slack offset from center
+
 // Returns { layout, anchorNodeIds, bounds }
 function computeAnchorLayout(flat) {
   const { anchors, satellites } = prepareAnchorData(flat);
@@ -22,12 +32,12 @@ function computeAnchorLayout(flat) {
   const topY = 0;
   const middleY = 350;
   const bottomY = 700;
-  const centerX = 500;
-  const copyGap = 320;
+  const centerX = LAYOUT_CENTER_X;
+  const copyGap = LAYOUT_COPY_GAP;
 
   // Row 1: root and slack
-  if (rootAnchor) { rootAnchor.cx = centerX - 180; rootAnchor.cy = topY; }
-  if (slackAnchor) { slackAnchor.cx = centerX + 180; slackAnchor.cy = topY; }
+  if (rootAnchor) { rootAnchor.cx = centerX - LAYOUT_TOP_OFFSET; rootAnchor.cy = topY; }
+  if (slackAnchor) { slackAnchor.cx = centerX + LAYOUT_TOP_OFFSET; slackAnchor.cy = topY; }
 
   // Row 2: copy nodes (Vado, Trek, Gazelle) centered horizontally
   if (copyAnchors.length > 0) {
@@ -240,6 +250,19 @@ function settleAnchorPhysics(flat, anchors, currentLayout) {
   return settledLayout;
 }
 
+// Returns the point on the edge of a rounded rect (centered at cx,cy) in direction `angle`.
+// Shrinks by corner radius so returned points never land in the rounded-corner clipped region.
+function rectEdgePoint(cx, cy, r, angle) {
+  const rx = r * NODE_RX_RATIO;
+  const hw = r * NODE_W_RATIO / 2 - rx;
+  const hh = r * NODE_H_RATIO / 2 - rx;
+  const cos = Math.cos(angle), sin = Math.sin(angle);
+  const tx = Math.abs(cos) > 1e-9 ? Math.abs(hw / cos) : Infinity;
+  const ty = Math.abs(sin) > 1e-9 ? Math.abs(hh / sin) : Infinity;
+  const t = Math.min(tx, ty);
+  return { x: cx + cos * t, y: cy + sin * t };
+}
+
 function renderAnchorEdgesAndBg(flat) {
   const { anchors } = prepareAnchorData(flat);
   if (anchors.length === 0) return;
@@ -257,11 +280,11 @@ function renderAnchorEdgesAndBg(flat) {
   const topY = 0;
   const middleY = 350;
   const bottomY = 700;
-  const centerX = 500;
-  const copyGap = 320;
+  const centerX = LAYOUT_CENTER_X;
+  const copyGap = LAYOUT_COPY_GAP;
 
-  if (rootAnchor) { rootAnchor.cx = centerX - 180; rootAnchor.cy = topY; }
-  if (slackAnchor) { slackAnchor.cx = centerX + 180; slackAnchor.cy = topY; }
+  if (rootAnchor) { rootAnchor.cx = centerX - LAYOUT_TOP_OFFSET; rootAnchor.cy = topY; }
+  if (slackAnchor) { slackAnchor.cx = centerX + LAYOUT_TOP_OFFSET; slackAnchor.cy = topY; }
   if (copyAnchors.length > 0) {
     const copyStartX = centerX - (copyAnchors.length - 1) * copyGap / 2;
     copyAnchors.forEach((a, i) => {
@@ -286,13 +309,17 @@ function renderAnchorEdgesAndBg(flat) {
     if (!from || !to) continue;
     const dx = Math.abs(to.cx - from.cx);
     const dy = to.cy - from.cy;
-    const horizontalOffset = dy > 0 ? 60 : -60;  // Bulge down if to is below, up if above
+    const horizontalOffset = dy > 0 ? 60 : -60;
     const curveHeight = Math.min(100, 40 + Math.abs(dx) * 0.1);
-    const midX = (from.cx + to.cx) / 2;
-    const midY = (from.cy + to.cy) / 2 + horizontalOffset + (dy > 0 ? curveHeight : -curveHeight);
+    const fromAngle = Math.atan2(to.cy - from.cy, to.cx - from.cx);
+    const toAngle = fromAngle + Math.PI;
+    const p0 = rectEdgePoint(from.cx, from.cy, from.r, fromAngle);
+    const p1 = rectEdgePoint(to.cx, to.cy, to.r, toAngle);
+    const midX = (p0.x + p1.x) / 2;
+    const midY = (p0.y + p1.y) / 2 + horizontalOffset + (dy > 0 ? curveHeight : -curveHeight);
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('class', 'anchor-edge' + (rec.carrierCount > 0 ? ' carrier' : ''));
-    path.setAttribute('d', `M ${from.cx} ${from.cy} Q ${midX} ${midY} ${to.cx} ${to.cy}`);
+    path.setAttribute('d', `M ${p0.x} ${p0.y} Q ${midX} ${midY} ${p1.x} ${p1.y}`);
     path.setAttribute('stroke-width', Math.min(6, 1 + rec.count * 0.8));
     edgesG.appendChild(path);
   }
@@ -324,10 +351,11 @@ function renderAnchorEdgesAndBg(flat) {
         satCy = a.cy + Math.sin(startAngle) * (a.r + SATELLITE_RING);
       }
 
+      const p0 = rectEdgePoint(a.cx, a.cy, a.r, startAngle);
       const link = document.createElementNS('http://www.w3.org/2000/svg', 'line');
       link.setAttribute('class', 'satellite-link');
-      link.setAttribute('x1', a.cx + Math.cos(startAngle) * a.r);
-      link.setAttribute('y1', a.cy + Math.sin(startAngle) * a.r);
+      link.setAttribute('x1', p0.x);
+      link.setAttribute('y1', p0.y);
       link.setAttribute('x2', satCx);
       link.setAttribute('y2', satCy);
       edgesG.appendChild(link);
