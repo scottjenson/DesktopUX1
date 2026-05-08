@@ -341,6 +341,114 @@ function renderAnchorEdgesAndBg(flat) {
 
 }
 
+// ── Satellite hover animation ─────────────────────────────────────────────────
+
+let _hoverRafHandle = null;
+let _hoverElements  = [];        // [{sat, rect, label, meta, line}]
+let _hoverLivePos   = new Map(); // satUrl → {cx, cy}, updated each animation frame
+
+function _cancelHover() {
+  if (_hoverRafHandle) { cancelAnimationFrame(_hoverRafHandle); _hoverRafHandle = null; }
+}
+
+// Edge directions touching each anchor — used for cone-based avoidance in hover settle.
+// Returns [{fromUrl, toUrl, nx, ny}] where (nx, ny) is the unit vector from→to.
+function _hoverEdgeData(anchors, flat) {
+  const anchorUrls = new Set(anchors.map(a => a.url));
+  const transitions = computeAnchorEdges(flat, anchorUrls);
+  const byUrl = new Map(anchors.map(a => [a.url, a]));
+  const edges = [];
+  for (const [key] of transitions) {
+    const [fu, tu] = key.split('||');
+    const from = byUrl.get(fu), to = byUrl.get(tu);
+    if (!from || !to) continue;
+    const len = Math.hypot(to.cx - from.cx, to.cy - from.cy) || 1;
+    edges.push({ fromUrl: fu, toUrl: tu,
+                 nx: (to.cx - from.cx) / len, ny: (to.cy - from.cy) / len });
+  }
+  return edges;
+}
+
+// Run D3 to steady state; returns Map<satUrl → {cx, cy}>.
+// anchorUrl identifies which anchor we're expanding so we can find its edge directions.
+function _hoverSettle(anchorPos, anchorUrl, sats, allEdgeData) {
+  const acx = anchorPos.cx, acy = anchorPos.cy;
+  const anchorHW = anchorPos.r * NODE_W_RATIO / 2 + 14;
+
+  // Directions FROM this anchor toward each connected anchor (both incoming and outgoing edges)
+  const edgeDirs = allEdgeData
+    .filter(e => e.fromUrl === anchorUrl || e.toUrl === anchorUrl)
+    .map(e => e.fromUrl === anchorUrl
+      ? { nx:  e.nx, ny:  e.ny }   // outgoing: direction toward other anchor
+      : { nx: -e.nx, ny: -e.ny }); // incoming: direction back toward source
+
+  const nodes = sats.map((sat, i) => {
+    const angle = (i / sats.length) * 2 * Math.PI;
+    const startR = anchorHW + sat.r * NODE_W_RATIO / 2 + 10;
+    return { url: sat.url, x: acx + Math.cos(angle) * startR, y: acy + Math.sin(angle) * startR,
+             hw: sat.r * NODE_W_RATIO / 2, vx: 0, vy: 0 };
+  });
+
+  function forceAnchorClear(alpha) {
+    for (const n of nodes) {
+      const dx = n.x - acx, dy = n.y - acy;
+      const d = Math.hypot(dx, dy) || 1;
+      const min = anchorHW + n.hw + 6;
+      if (d < min) { const f = (min - d) / d * alpha; n.vx += dx * f; n.vy += dy * f; }
+    }
+  }
+
+  // Cone exclusion: satellites within ±CONE_ANGLE of an edge direction get pushed
+  // perpendicular to that edge. Using a direction-based dot-product means this never
+  // produces a zero force vector, even when the satellite is exactly on the edge axis.
+  const CONE = Math.PI / 9; // 20°
+
+  function forceEdgeCone(alpha) {
+    for (const n of nodes) {
+      const dx = n.x - acx, dy = n.y - acy;
+      const dist = Math.hypot(dx, dy) || 1;
+      const satNx = dx / dist, satNy = dy / dist;
+
+      for (const dir of edgeDirs) {
+        const dot = satNx * dir.nx + satNy * dir.ny;
+        if (dot <= 0) continue; // satellite is behind this edge direction
+
+        const angFromEdge = Math.acos(Math.min(1, dot));
+        if (angFromEdge >= CONE) continue;
+
+        // cross > 0: satellite is CCW of edge direction; < 0: CW; = 0: exactly on axis
+        const cross = satNx * dir.ny - satNy * dir.nx;
+        // Push satellite to whichever side it's already on, or CCW when exactly on axis
+        const side = cross >= 0 ? -1 : 1;
+        const perpNx = -dir.ny * side;
+        const perpNy =  dir.nx * side;
+
+        const overlap = (CONE - angFromEdge) / CONE;
+        const f = overlap * alpha * 0.6;
+        n.vx += perpNx * f * (n.hw + 20);
+        n.vy += perpNy * f * (n.hw + 20);
+      }
+    }
+  }
+
+  const avgSatHW = nodes.reduce((s, n) => s + n.hw, 0) / (nodes.length || 1);
+  const targetR  = anchorHW + avgSatHW + 30;
+
+  const sim = d3.forceSimulation(nodes)
+    .force('collide', d3.forceCollide(d => d.hw + 8).strength(0.9).iterations(4))
+    .force('radial',  d3.forceRadial(targetR, acx, acy).strength(0.4))
+    .force('anchorClear', forceAnchorClear)
+    .force('edgeCone', forceEdgeCone)
+    .alphaDecay(0.04)
+    .stop();
+
+  for (let i = 0; i < 150; i++) sim.tick();
+
+  const settled = new Map();
+  for (const n of nodes) settled.set(n.url, { cx: n.x, cy: n.y });
+  return settled;
+}
+
 // ── Anchor hover: show/hide satellite cluster on demand ───────────────────────
 
 function setupAnchorHover(flat, anchors, buckets) {
@@ -348,59 +456,57 @@ function setupAnchorHover(flat, anchors, buckets) {
 
   const overlay  = document.getElementById('satellite-overlay');
   const targetsG = document.getElementById('hover-targets');
-  const anchorByUrl = new Map(anchors.map(a => [a.url, a]));
+  const allEdgeData = _hoverEdgeData(anchors, flat);
+
+  const APPEAR_MS    = 400;
+  const DISAPPEAR_MS = 250;
 
   for (const a of anchors) {
     const anchorPos = currentPositions.get(a.visits[0]?.node_id);
     if (!anchorPos) continue;
 
-    const w = anchorPos.r * NODE_W_RATIO, h = anchorPos.r * NODE_H_RATIO;
-    const target = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    target.setAttribute('x', anchorPos.cx - w / 2);
-    target.setAttribute('y', anchorPos.cy - h / 2);
-    target.setAttribute('width', w);
-    target.setAttribute('height', h);
-    target.setAttribute('rx', anchorPos.r * NODE_RX_RATIO);
-    target.setAttribute('fill', 'transparent');
-    target.setAttribute('stroke', 'none');
-    target.style.cursor = 'pointer';
-
     const sats = buckets.get(a.url) || [];
 
-    target.addEventListener('mouseenter', () => {
-      overlay.innerHTML = '';
+    const w = anchorPos.r * NODE_W_RATIO, h = anchorPos.r * NODE_H_RATIO;
+    const hit = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    hit.setAttribute('x', anchorPos.cx - w / 2);  hit.setAttribute('y', anchorPos.cy - h / 2);
+    hit.setAttribute('width', w);                  hit.setAttribute('height', h);
+    hit.setAttribute('rx', anchorPos.r * NODE_RX_RATIO);
+    hit.setAttribute('fill', 'transparent');        hit.setAttribute('stroke', 'none');
+    hit.style.cursor = 'pointer';
 
-      // Draw lines first so they appear behind node rects
+    hit.addEventListener('mouseenter', () => {
+      _cancelHover();
+      overlay.innerHTML = '';
+      _hoverElements = [];
+      _hoverLivePos  = new Map();
+      if (!sats.length) return;
+
+      const settled = _hoverSettle(anchorPos, a.url, sats, allEdgeData);
+      const acx = anchorPos.cx, acy = anchorPos.cy;
+
+      // Lines first (behind rects)
       for (const sat of sats) {
-        const pos = currentPositions.get(sat.visits[0]?.node_id);
-        if (!pos) continue;
-        const angle = Math.atan2(pos.cy - anchorPos.cy, pos.cx - anchorPos.cx);
-        const p0 = rectEdgePoint(anchorPos.cx, anchorPos.cy, anchorPos.r, angle);
+        if (!settled.has(sat.url)) continue;
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         line.setAttribute('class', 'satellite-link');
-        line.setAttribute('x1', p0.x); line.setAttribute('y1', p0.y);
-        line.setAttribute('x2', pos.cx); line.setAttribute('y2', pos.cy);
         overlay.appendChild(line);
+        _hoverElements.push({ sat, line, rect: null, label: null, meta: null });
       }
-
-      // Draw satellite nodes on top of lines
-      for (const sat of sats) {
-        const pos = currentPositions.get(sat.visits[0]?.node_id);
-        if (!pos) continue;
-        const sr = pos.r, sw = sr * NODE_W_RATIO, sh = sr * NODE_H_RATIO;
-        const colorClass = (sat.pastesReceived > 0) ? ' paste' : (sat.copyCount > 0) ? ' copy' : '';
+      // Rects + labels on top
+      for (let i = 0; i < _hoverElements.length; i++) {
+        const { sat } = _hoverElements[i];
+        const sr = sat.r, sw = sr * NODE_W_RATIO, sh = sr * NODE_H_RATIO;
+        const cc = (sat.pastesReceived > 0) ? ' paste' : (sat.copyCount > 0) ? ' copy' : '';
 
         const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        rect.setAttribute('class', 'node' + colorClass);
-        rect.setAttribute('x', pos.cx - sw / 2); rect.setAttribute('y', pos.cy - sh / 2);
+        rect.setAttribute('class', 'node' + cc);
         rect.setAttribute('width', sw); rect.setAttribute('height', sh);
         rect.setAttribute('rx', sr * NODE_RX_RATIO);
         overlay.appendChild(rect);
 
         const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         label.setAttribute('class', 'node-label');
-        label.setAttribute('x', pos.cx);
-        label.setAttribute('y', pos.cy - sr * ANCHOR_TITLE_Y_RATIO);
         label.setAttribute('text-anchor', 'middle');
         label.setAttribute('dominant-baseline', 'central');
         label.setAttribute('font-size', sr * ANCHOR_TITLE_SIZE_RATIO);
@@ -410,23 +516,108 @@ function setupAnchorHover(flat, anchors, buckets) {
         const dwellMin = Math.round(sat.totalDwell / 60);
         const meta = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         meta.setAttribute('class', 'node-meta');
-        meta.setAttribute('x', pos.cx);
-        meta.setAttribute('y', pos.cy + sr * ANCHOR_META1_Y_RATIO);
+        meta.setAttribute('text-anchor', 'middle');
         meta.setAttribute('font-size', sr * ANCHOR_META_SIZE_RATIO);
         meta.textContent = `${sat.visits.length} visit${sat.visits.length !== 1 ? 's' : ''} · ${dwellMin}m`;
         overlay.appendChild(meta);
+
+        _hoverElements[i] = { ..._hoverElements[i], rect, label, meta };
       }
+
+      // Appear: lerp from anchor center → settled positions
+      let t0 = null;
+      function appearTick(now) {
+        if (!t0) t0 = now;
+        const t  = Math.min((now - t0) / APPEAR_MS, 1);
+        const et = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+
+        for (const { sat, rect, label, meta, line } of _hoverElements) {
+          const tgt = settled.get(sat.url);
+          if (!tgt || !rect) continue;
+          const cx = _lerp(acx, tgt.cx, et), cy = _lerp(acy, tgt.cy, et);
+          const op = et;
+          const sr = sat.r, sw = sr * NODE_W_RATIO, sh = sr * NODE_H_RATIO;
+
+          rect.setAttribute('x', cx - sw / 2); rect.setAttribute('y', cy - sh / 2);
+          rect.setAttribute('opacity', op);
+          label.setAttribute('x', cx); label.setAttribute('y', cy - sr * ANCHOR_TITLE_Y_RATIO);
+          label.setAttribute('opacity', op);
+          meta.setAttribute('x', cx);  meta.setAttribute('y', cy + sr * ANCHOR_META1_Y_RATIO);
+          meta.setAttribute('opacity', op);
+
+          const ang = Math.atan2(cy - acy, cx - acx);
+          const p0  = rectEdgePoint(acx, acy, anchorPos.r, ang);
+          const p1  = rectEdgePoint(cx,  cy,  sr,          ang + Math.PI);
+          line.setAttribute('x1', p0.x); line.setAttribute('y1', p0.y);
+          line.setAttribute('x2', p1.x); line.setAttribute('y2', p1.y);
+          line.setAttribute('opacity', op * 0.7);
+
+          _hoverLivePos.set(sat.url, { cx, cy });
+        }
+        _hoverRafHandle = t < 1 ? requestAnimationFrame(appearTick) : null;
+      }
+      _hoverRafHandle = requestAnimationFrame(appearTick);
     });
 
-    target.addEventListener('mouseleave', () => { overlay.innerHTML = ''; });
-    targetsG.appendChild(target);
+    hit.addEventListener('mouseleave', () => {
+      _cancelHover();
+      const fromPos  = new Map(_hoverLivePos);
+      const elemSnap = [..._hoverElements];
+      _hoverLivePos  = new Map();
+      if (!elemSnap.length) { overlay.innerHTML = ''; return; }
+
+      const acx = anchorPos.cx, acy = anchorPos.cy;
+      let t0 = null;
+
+      function disappearTick(now) {
+        if (!t0) t0 = now;
+        const t  = Math.min((now - t0) / DISAPPEAR_MS, 1);
+        const et = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+        const op = 1 - et;
+
+        for (const { sat, rect, label, meta, line } of elemSnap) {
+          if (!rect) continue;
+          const from = fromPos.get(sat.url) || { cx: acx, cy: acy };
+          const cx = _lerp(from.cx, acx, et), cy = _lerp(from.cy, acy, et);
+          const sr = sat.r, sw = sr * NODE_W_RATIO, sh = sr * NODE_H_RATIO;
+
+          rect.setAttribute('x', cx - sw / 2); rect.setAttribute('y', cy - sh / 2);
+          rect.setAttribute('opacity', op);
+          label.setAttribute('x', cx); label.setAttribute('y', cy - sr * ANCHOR_TITLE_Y_RATIO);
+          label.setAttribute('opacity', op);
+          meta.setAttribute('x', cx);  meta.setAttribute('y', cy + sr * ANCHOR_META1_Y_RATIO);
+          meta.setAttribute('opacity', op);
+
+          const ang = Math.atan2(cy - acy, cx - acx);
+          const p0  = rectEdgePoint(acx, acy, anchorPos.r, ang);
+          const p1  = rectEdgePoint(cx,  cy,  sr,          ang + Math.PI);
+          line.setAttribute('x1', p0.x); line.setAttribute('y1', p0.y);
+          line.setAttribute('x2', p1.x); line.setAttribute('y2', p1.y);
+          line.setAttribute('opacity', op * 0.7);
+        }
+
+        if (t < 1) {
+          _hoverRafHandle = requestAnimationFrame(disappearTick);
+        } else {
+          overlay.innerHTML = '';
+          _hoverElements = [];
+          _hoverRafHandle = null;
+        }
+      }
+      _hoverRafHandle = requestAnimationFrame(disappearTick);
+    });
+
+    targetsG.appendChild(hit);
   }
 }
 
 function teardownAnchorHover() {
+  _cancelHover();
   const overlay = document.getElementById('satellite-overlay');
   const targetsG = document.getElementById('hover-targets');
   if (overlay) overlay.innerHTML = '';
   if (targetsG) targetsG.innerHTML = '';
+  _hoverElements = [];
+  _hoverLivePos  = new Map();
 }
 
