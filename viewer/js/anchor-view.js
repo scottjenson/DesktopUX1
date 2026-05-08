@@ -146,20 +146,21 @@ function computeAnchorLayout(flat) {
       : placeHasCopy ? `${place.copyCount} copies` : '';
     const visitLabel = `${place.visitCount} visit${place.visitCount !== 1 ? 's' : ''} · ${dwellMin}m`;
 
+    const isAnchor = place.isAnchor;
     layout.set(node.node_id, {
-      cx: place.cx, cy: place.cy, r: place.r, opacity: 1,
+      cx: place.cx, cy: place.cy, r: place.r, opacity: isAnchor ? 1 : 0,
       labelX: place.cx,
       labelY: place.cy - place.r * ANCHOR_TITLE_Y_RATIO,
       labelAnchor: 'middle',
-      labelFontSize: place.r * ANCHOR_TITLE_SIZE_RATIO,
+      labelFontSize: isAnchor ? place.r * ANCHOR_TITLE_SIZE_RATIO : 0,
       labelBaseline: 'central',
-      labelText: truncate(placeLabel(place.url, place.page_title), 20),
-      circleClass: (place.isAnchor ? 'anchor' : '') + colorClass,
-      metaText: visitLabel,
+      labelText: isAnchor ? truncate(placeLabel(place.url, place.page_title), 20) : '',
+      circleClass: (isAnchor ? 'anchor' : '') + colorClass,
+      metaText: isAnchor ? visitLabel : '',
       metaX: place.cx,
       metaY: place.cy + place.r * ANCHOR_META1_Y_RATIO,
-      metaFontSize: place.r * ANCHOR_META_SIZE_RATIO,
-      meta2Text,
+      metaFontSize: isAnchor ? place.r * ANCHOR_META_SIZE_RATIO : 0,
+      meta2Text: isAnchor ? meta2Text : '',
       meta2X: place.cx,
       meta2Y: place.cy + place.r * ANCHOR_META2_Y_RATIO,
     });
@@ -176,7 +177,7 @@ function computeAnchorLayout(flat) {
     maxY: Math.max(...allY) + PAD + 20,
   };
 
-  return { anchors, layout, anchorNodeIds, bounds };
+  return { anchors, buckets, layout, anchorNodeIds, bounds };
 }
 
 // Physics-based settlement: run one simulation per row so satellites from
@@ -324,42 +325,94 @@ function renderAnchorEdgesAndBg(flat) {
     edgesG.appendChild(path);
   }
 
-  // Satellite link lines
-  const buckets = assignSatellitesToAnchors(anchors, prepareAnchorData(flat).satellites, flat);
-  for (const a of anchors) {
-    const sats = buckets.get(a.url) || [];
-    sats.forEach((sat, i) => {
-      // Use settled position from currentPositions if available, else fall back to layout formula
-      const nodeId = sat.visits[0]?.node_id;
-      const settled = nodeId ? currentPositions.get(nodeId) : null;
-      let satCx, satCy, startAngle;
+}
 
-      if (settled && settled.opacity > 0) {
-        satCx = settled.cx;
-        satCy = settled.cy;
-        startAngle = Math.atan2(satCy - a.cy, satCx - a.cx);
-      } else {
-        const half = i % 2 === 0 ? 'top' : 'bottom';
-        const idxInHalf = Math.floor(i / 2);
-        const totalInHalf = Math.ceil(sats.length / 2);
-        let angleStart, angleEnd;
-        if (half === 'top') { angleStart = -160 * Math.PI / 180; angleEnd = -20 * Math.PI / 180; }
-        else                { angleStart = 20 * Math.PI / 180;   angleEnd = 160 * Math.PI / 180; }
-        const t = totalInHalf === 1 ? 0.5 : idxInHalf / Math.max(1, totalInHalf - 1);
-        startAngle = angleStart + t * (angleEnd - angleStart);
-        satCx = a.cx + Math.cos(startAngle) * (a.r + SATELLITE_RING);
-        satCy = a.cy + Math.sin(startAngle) * (a.r + SATELLITE_RING);
+// ── Anchor hover: show/hide satellite cluster on demand ───────────────────────
+
+function setupAnchorHover(flat, anchors, buckets) {
+  teardownAnchorHover();
+
+  const overlay  = document.getElementById('satellite-overlay');
+  const targetsG = document.getElementById('hover-targets');
+  const anchorByUrl = new Map(anchors.map(a => [a.url, a]));
+
+  for (const a of anchors) {
+    const anchorPos = currentPositions.get(a.visits[0]?.node_id);
+    if (!anchorPos) continue;
+
+    const w = anchorPos.r * NODE_W_RATIO, h = anchorPos.r * NODE_H_RATIO;
+    const target = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    target.setAttribute('x', anchorPos.cx - w / 2);
+    target.setAttribute('y', anchorPos.cy - h / 2);
+    target.setAttribute('width', w);
+    target.setAttribute('height', h);
+    target.setAttribute('rx', anchorPos.r * NODE_RX_RATIO);
+    target.setAttribute('fill', 'transparent');
+    target.setAttribute('stroke', 'none');
+    target.style.cursor = 'pointer';
+
+    const sats = buckets.get(a.url) || [];
+
+    target.addEventListener('mouseenter', () => {
+      overlay.innerHTML = '';
+
+      // Draw lines first so they appear behind node rects
+      for (const sat of sats) {
+        const pos = currentPositions.get(sat.visits[0]?.node_id);
+        if (!pos) continue;
+        const angle = Math.atan2(pos.cy - anchorPos.cy, pos.cx - anchorPos.cx);
+        const p0 = rectEdgePoint(anchorPos.cx, anchorPos.cy, anchorPos.r, angle);
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('class', 'satellite-link');
+        line.setAttribute('x1', p0.x); line.setAttribute('y1', p0.y);
+        line.setAttribute('x2', pos.cx); line.setAttribute('y2', pos.cy);
+        overlay.appendChild(line);
       }
 
-      const p0 = rectEdgePoint(a.cx, a.cy, a.r, startAngle);
-      const link = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      link.setAttribute('class', 'satellite-link');
-      link.setAttribute('x1', p0.x);
-      link.setAttribute('y1', p0.y);
-      link.setAttribute('x2', satCx);
-      link.setAttribute('y2', satCy);
-      edgesG.appendChild(link);
+      // Draw satellite nodes on top of lines
+      for (const sat of sats) {
+        const pos = currentPositions.get(sat.visits[0]?.node_id);
+        if (!pos) continue;
+        const sr = pos.r, sw = sr * NODE_W_RATIO, sh = sr * NODE_H_RATIO;
+        const colorClass = (sat.pastesReceived > 0) ? ' paste' : (sat.copyCount > 0) ? ' copy' : '';
+
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('class', 'node' + colorClass);
+        rect.setAttribute('x', pos.cx - sw / 2); rect.setAttribute('y', pos.cy - sh / 2);
+        rect.setAttribute('width', sw); rect.setAttribute('height', sh);
+        rect.setAttribute('rx', sr * NODE_RX_RATIO);
+        overlay.appendChild(rect);
+
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('class', 'node-label');
+        label.setAttribute('x', pos.cx);
+        label.setAttribute('y', pos.cy - sr * ANCHOR_TITLE_Y_RATIO);
+        label.setAttribute('text-anchor', 'middle');
+        label.setAttribute('dominant-baseline', 'central');
+        label.setAttribute('font-size', sr * ANCHOR_TITLE_SIZE_RATIO);
+        label.textContent = truncate(placeLabel(sat.url, sat.page_title), 20);
+        overlay.appendChild(label);
+
+        const dwellMin = Math.round(sat.totalDwell / 60);
+        const meta = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        meta.setAttribute('class', 'node-meta');
+        meta.setAttribute('x', pos.cx);
+        meta.setAttribute('y', pos.cy + sr * ANCHOR_META1_Y_RATIO);
+        meta.setAttribute('font-size', sr * ANCHOR_META_SIZE_RATIO);
+        meta.textContent = `${sat.visits.length} visit${sat.visits.length !== 1 ? 's' : ''} · ${dwellMin}m`;
+        overlay.appendChild(meta);
+      }
     });
+
+    target.addEventListener('mouseleave', () => { overlay.innerHTML = ''; });
+    targetsG.appendChild(target);
   }
+}
+
+function teardownAnchorHover() {
+  const overlay = document.getElementById('satellite-overlay');
+  const targetsG = document.getElementById('hover-targets');
+  if (overlay) overlay.innerHTML = '';
+  if (targetsG) targetsG.innerHTML = '';
 }
 

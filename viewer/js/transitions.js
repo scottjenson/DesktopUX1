@@ -261,7 +261,7 @@ function runPhysicsSettlement(flat, anchors) {
 // ── Tree → Anchor (the important one) ────────────────────────────────────────
 
 function transitionTreeToAnchor(flat) {
-  const { anchors, layout: aLayout, anchorNodeIds, bounds } = computeAnchorLayout(flat);
+  const { anchors, buckets, layout: aLayout, anchorNodeIds, bounds } = computeAnchorLayout(flat);
   const toView = _targetView(bounds);
 
   // Apply anchor circle styling before animation begins, preserving color modifiers
@@ -317,7 +317,7 @@ function transitionTreeToAnchor(flat) {
     {
       duration: 300,
       onFrame(t, et) { _applyEdgesFrame(0, 1, et); },
-      onComplete() { runPhysicsSettlement(flat, anchors); },
+      onComplete() { setupAnchorHover(flat, anchors, buckets); },
     },
   ]);
 }

@@ -17,6 +17,7 @@ function switchToHistory() {
   const prev = currentMode;
   currentMode = 'history';
   _updateViewUI('history');
+  if (prev === 'anchor') teardownAnchorHover();
 
   // Use consistent rendering for all cases (initial + transitions)
   if (prev === null) {
@@ -36,6 +37,7 @@ function switchToTree() {
   const prev = currentMode;
   currentMode = 'tree';
   _updateViewUI('tree');
+  if (prev === 'anchor') teardownAnchorHover();
   _ensureTree();
 
   if (prev === null) {
@@ -58,19 +60,19 @@ function switchToAnchor() {
   _ensureTree();
 
   if (prev === null) {
-    const { anchors, layout, bounds } = computeAnchorLayout(HISTORY_DATA);
+    const { anchors, buckets, layout, bounds } = computeAnchorLayout(HISTORY_DATA);
     applyLayout(layout);
     renderAnchorEdgesAndBg(HISTORY_DATA);
     fitToBounds(bounds);
-    runPhysicsSettlement(HISTORY_DATA, anchors);
+    setupAnchorHover(HISTORY_DATA, anchors, buckets);
     return;
   }
   if (prev === 'tree') {
     transitionTreeToAnchor(HISTORY_DATA);
   } else if (prev === 'history') {
-    const { anchors, layout: aLayout, bounds } = computeAnchorLayout(HISTORY_DATA);
+    const { anchors, buckets, layout: aLayout, bounds } = computeAnchorLayout(HISTORY_DATA);
     transitionDirectTo(aLayout, () => renderAnchorEdgesAndBg(HISTORY_DATA), bounds,
-      () => runPhysicsSettlement(HISTORY_DATA, anchors));
+      () => setupAnchorHover(HISTORY_DATA, anchors, buckets));
   }
 }
 
