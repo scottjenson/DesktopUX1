@@ -391,12 +391,60 @@ function renderAnchorEdgesAndBg(flat) {
 
 // ── Satellite hover animation ─────────────────────────────────────────────────
 
-let _hoverRafHandle = null;
-let _hoverElements  = [];        // [{sat, rect, label, meta, line}]
-let _hoverLivePos   = new Map(); // satUrl → {cx, cy}, updated each animation frame
+const APPEAR_MS    = 400;
+const DISAPPEAR_MS = 250;
 
+let _hoverRafHandle = null;
+let _hoverElements  = [];        // [{sat, rect, label, meta, line, sw}]
+let _hoverLivePos   = new Map(); // satUrl → {cx, cy}, updated each animation frame
+// Anchor the current cluster belongs to — needed so _cancelHover knows where to collapse back
+let _hoverAnchorCx  = 0;
+let _hoverAnchorCy  = 0;
+let _hoverAnchorR   = 0;
+let _hoverAnchorW   = 0;
+
+// Cancel any in-progress appear and animate any visible satellites back to their anchor center.
+// Called from both mouseenter (new anchor) and mouseleave (empty space).
 function _cancelHover() {
   if (_hoverRafHandle) { cancelAnimationFrame(_hoverRafHandle); _hoverRafHandle = null; }
+  if (!_hoverElements.length) return;
+
+  const fromPos  = new Map(_hoverLivePos);
+  const elemSnap = [..._hoverElements];
+  const acx = _hoverAnchorCx, acy = _hoverAnchorCy;
+  const anchorR = _hoverAnchorR, anchorW = _hoverAnchorW;
+  _hoverElements = [];
+  _hoverLivePos  = new Map();
+
+  let t0 = null;
+  function disappearTick(now) {
+    if (!t0) t0 = now;
+    const t  = Math.min((now - t0) / DISAPPEAR_MS, 1);
+    const et = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+    const op = 1 - et;
+    for (const { sat, rect, label, meta, line, sw } of elemSnap) {
+      if (!rect) continue;
+      const from = fromPos.get(sat.url) || { cx: acx, cy: acy };
+      const cx = _lerp(from.cx, acx, et), cy = _lerp(from.cy, acy, et);
+      const sr = sat.r, sh = sr * NODE_H_RATIO;
+      rect.setAttribute('x', cx - sw / 2); rect.setAttribute('y', cy - sh / 2);
+      rect.setAttribute('opacity', op);
+      label.setAttribute('x', cx); label.setAttribute('y', cy - sr * ANCHOR_TITLE_Y_RATIO);
+      label.setAttribute('opacity', op);
+      meta.setAttribute('x', cx);  meta.setAttribute('y', cy + sr * ANCHOR_META1_Y_RATIO);
+      meta.setAttribute('opacity', op);
+      const ang = Math.atan2(cy - acy, cx - acx);
+      const p0  = rectEdgePoint(acx, acy, anchorR, ang, 0, anchorW / 2);
+      const p1  = rectEdgePoint(cx,  cy,  sr,      ang + Math.PI, 0, sw / 2);
+      line.setAttribute('x1', p0.x); line.setAttribute('y1', p0.y);
+      line.setAttribute('x2', p1.x); line.setAttribute('y2', p1.y);
+      line.setAttribute('opacity', op * 0.7);
+    }
+    if (t < 1) requestAnimationFrame(disappearTick);
+    else for (const { rect, label, meta, line } of elemSnap)
+      rect?.remove(), label?.remove(), meta?.remove(), line?.remove();
+  }
+  requestAnimationFrame(disappearTick);
 }
 
 // Edge directions touching each anchor — used for cone-based avoidance in hover settle.
@@ -508,9 +556,6 @@ function setupAnchorHover(flat, anchors, buckets) {
   const targetsG = document.getElementById('hover-targets');
   const allEdgeData = _hoverEdgeData(anchors, flat);
 
-  const APPEAR_MS    = 400;
-  const DISAPPEAR_MS = 250;
-
   for (const a of anchors) {
     const anchorPos = currentPositions.get(a.visits[0]?.node_id);
     if (!anchorPos) continue;
@@ -527,10 +572,17 @@ function setupAnchorHover(flat, anchors, buckets) {
     hit.style.cursor = 'pointer';
 
     hit.addEventListener('mouseenter', () => {
-      _cancelHover();
-      overlay.innerHTML = '';
+      _cancelHover(); // collapses any current cluster back to its anchor; owns its elements
       _hoverElements = [];
       _hoverLivePos  = new Map();
+
+      // Store anchor info so _cancelHover can collapse this cluster later
+      const anchorW = currentPositions.get(a.visits[0]?.node_id)?.w ?? anchorPos.r * NODE_W_RATIO;
+      _hoverAnchorCx = anchorPos.cx;
+      _hoverAnchorCy = anchorPos.cy;
+      _hoverAnchorR  = anchorPos.r;
+      _hoverAnchorW  = anchorW;
+
       if (!sats.length) return;
 
       // Pre-compute per-satellite widths and pixel-truncated labels
@@ -546,8 +598,6 @@ function setupAnchorHover(flat, anchors, buckets) {
       }
       const satWidths = new Map([...satInfo].map(([url, { sw }]) => [url, sw]));
 
-      const anchorNodePos = currentPositions.get(a.visits[0]?.node_id);
-      const anchorW = anchorNodePos?.w ?? anchorPos.r * NODE_W_RATIO;
       const settled = _hoverSettle(anchorPos, anchorW, a.url, sats, allEdgeData, satWidths);
       const acx = anchorPos.cx, acy = anchorPos.cy;
 
@@ -625,60 +675,13 @@ function setupAnchorHover(flat, anchors, buckets) {
       _hoverRafHandle = requestAnimationFrame(appearTick);
     });
 
-    hit.addEventListener('mouseleave', () => {
-      _cancelHover();
-      const fromPos  = new Map(_hoverLivePos);
-      const elemSnap = [..._hoverElements];
-      _hoverLivePos  = new Map();
-      if (!elemSnap.length) { overlay.innerHTML = ''; return; }
-
-      const acx = anchorPos.cx, acy = anchorPos.cy;
-      let t0 = null;
-
-      function disappearTick(now) {
-        if (!t0) t0 = now;
-        const t  = Math.min((now - t0) / DISAPPEAR_MS, 1);
-        const et = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
-        const op = 1 - et;
-
-        for (const { sat, rect, label, meta, line, sw } of elemSnap) {
-          if (!rect) continue;
-          const from = fromPos.get(sat.url) || { cx: acx, cy: acy };
-          const cx = _lerp(from.cx, acx, et), cy = _lerp(from.cy, acy, et);
-          const sr = sat.r, sh = sr * NODE_H_RATIO;
-
-          rect.setAttribute('x', cx - sw / 2); rect.setAttribute('y', cy - sh / 2);
-          rect.setAttribute('opacity', op);
-          label.setAttribute('x', cx); label.setAttribute('y', cy - sr * ANCHOR_TITLE_Y_RATIO);
-          label.setAttribute('opacity', op);
-          meta.setAttribute('x', cx);  meta.setAttribute('y', cy + sr * ANCHOR_META1_Y_RATIO);
-          meta.setAttribute('opacity', op);
-
-          const ang = Math.atan2(cy - acy, cx - acx);
-          const p0  = rectEdgePoint(acx, acy, anchorPos.r, ang, 0, anchorW / 2);
-          const p1  = rectEdgePoint(cx,  cy,  sr,          ang + Math.PI, 0, sw / 2);
-          line.setAttribute('x1', p0.x); line.setAttribute('y1', p0.y);
-          line.setAttribute('x2', p1.x); line.setAttribute('y2', p1.y);
-          line.setAttribute('opacity', op * 0.7);
-        }
-
-        if (t < 1) {
-          _hoverRafHandle = requestAnimationFrame(disappearTick);
-        } else {
-          overlay.innerHTML = '';
-          _hoverElements = [];
-          _hoverRafHandle = null;
-        }
-      }
-      _hoverRafHandle = requestAnimationFrame(disappearTick);
-    });
 
     targetsG.appendChild(hit);
   }
 }
 
 function teardownAnchorHover() {
-  _cancelHover();
+  if (_hoverRafHandle) { cancelAnimationFrame(_hoverRafHandle); _hoverRafHandle = null; }
   const overlay = document.getElementById('satellite-overlay');
   const targetsG = document.getElementById('hover-targets');
   if (overlay) overlay.innerHTML = '';
