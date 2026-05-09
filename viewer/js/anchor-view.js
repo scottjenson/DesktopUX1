@@ -144,6 +144,7 @@ function computeAnchorLayout(flat) {
   // Map each node to its place position — anchors and non-anchors render identically
   const layout = new Map();
   const anchorNodeIds = new Set();
+  const canonicalAnchorIds = new Set(anchors.map(a => a.visits[0]?.node_id).filter(Boolean));
 
   // Precompute anchor positions by firstIdx for collapsing orphan nodes
   const anchorsSortedByIdx = [...anchors].sort((a, b) => a.firstIdx - b.firstIdx);
@@ -191,7 +192,7 @@ function computeAnchorLayout(flat) {
       : '';
 
     layout.set(node.node_id, {
-      cx: place.cx, cy: place.cy, r: place.r, opacity: isAnchor ? 1 : 0, w: nodeW,
+      cx: place.cx, cy: place.cy, r: place.r, opacity: (isAnchor && canonicalAnchorIds.has(node.node_id)) ? 1 : 0, w: nodeW,
       labelX: place.cx,
       labelY: place.cy - place.r * ANCHOR_TITLE_Y_RATIO,
       labelAnchor: 'middle',
@@ -641,11 +642,20 @@ function setupAnchorHover(flat, anchors, buckets) {
       }
 
       // Appear: lerp from anchor center → settled positions
+      const anchorCircles = [nodeRegistry.get(a.visits[0]?.node_id)?.circle].filter(Boolean);
       let t0 = null;
       function appearTick(now) {
         if (!t0) t0 = now;
         const t  = Math.min((now - t0) / APPEAR_MS, 1);
         const et = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+
+        // Squish anchor: shrink to 90% over first 150ms, restore over next 150ms
+        const elapsed = now - t0;
+        const s = elapsed < 150 ? 1 - 0.1 * (elapsed / 150)
+                : elapsed < 300 ? 0.9 + 0.1 * ((elapsed - 150) / 150)
+                : 1;
+        const xform = s < 1 ? `translate(${acx} ${acy}) scale(${s}) translate(${-acx} ${-acy})` : '';
+        for (const c of anchorCircles) c.setAttribute('transform', xform);
 
         for (const { sat, rect, label, meta, line, sw } of _hoverElements) {
           const tgt = settled.get(sat.url);

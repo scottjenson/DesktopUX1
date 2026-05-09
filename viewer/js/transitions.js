@@ -303,7 +303,7 @@ function transitionTreeToAnchor(flat) {
     {
       duration: 160,
       onStart() {
-        restoreLayout = _opacityLayout(id => anchorNodeIds.has(id) ? 1 : 0);
+        restoreLayout = _opacityLayout(id => aLayout.get(id)?.opacity ?? 0);
         fromSnap      = _prepareNodeTween(restoreLayout);
       },
       onFrame(t, et) { _applyNodeFrame(fromSnap, restoreLayout, et); },
