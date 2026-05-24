@@ -53,7 +53,7 @@ stage.addEventListener('wheel', e => {
   e.preventDefault();
   const rect = stage.getBoundingClientRect();
   const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-  const delta = -e.deltaY * 0.0015;
+  const delta = -e.deltaY * 0.005;
   const newScale = Math.max(0.15, Math.min(8, view.scale * Math.exp(delta)));
   const k = newScale / view.scale;
   view.x = mx - (mx - view.x) * k;

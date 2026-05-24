@@ -209,7 +209,7 @@ function computeAnchorLayout(flat) {
       labelFontSize: isAnchor ? place.r * ANCHOR_TITLE_SIZE_RATIO : 0,
       labelBaseline: 'central',
       labelText,
-      circleClass: (isAnchor ? 'anchor' : '') + colorClass,
+      circleClass: (isAnchor ? 'anchor' : '') + colorClass + (isAnchor && place.url.includes('google.com/search') ? ' search-anchor' : ''),
       metaText: isAnchor ? visitLabel : '',
       metaX: place.cx,
       metaY: place.cy + place.r * ANCHOR_META1_Y_RATIO,
@@ -725,7 +725,11 @@ function setupAnchorHover(flat, anchors, buckets) {
         const { sat, sw } = _hoverElements[i];
         const sr = sat.r, sh = sr * NODE_H_RATIO;
         const cc = (sat.pastesReceived > 0) ? ' paste' : (sat.copyCount > 0) ? ' copy' : '';
-        const destClass = sat.destinationAnchor ? ' dest-link' : '';
+        // Google-search dest-link sats get a thinner tan border (lesser version of the
+        // central Google Search anchor's accent stroke). Non-search dest-link sats rely
+        // on the outbound edge alone to signal their role.
+        const destClass = (sat.destinationAnchor && sat.url.includes('google.com/search'))
+          ? ' dest-link-search' : '';
         const { labelText, metaText } = satInfo.get(sat.url) || {};
 
         const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
