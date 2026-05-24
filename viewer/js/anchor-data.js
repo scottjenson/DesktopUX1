@@ -5,6 +5,19 @@ const SATELLITE_RING = 95;
 const MIN_ANCHOR_LABEL_PX = 60;
 const MIN_ANCHOR_META_PX = 80;
 
+// Anchor-inference weights — see scripts/test-anchor-equivalence.js for the
+// tuning process. Tuned so the inferred anchor set matches the labeled set
+// exactly on the current dataset, with a wide margin (rank-6 = 376, rank-7 = 122).
+const ANCHOR_W_DWELL_ACTIVE = 0.3;
+const ANCHOR_W_COPY         = 150;
+const ANCHOR_W_PASTE        = 80;
+const ANCHOR_W_SEL_EVAP     = 20;
+const ANCHOR_W_HUB_PER_CHILD = 120;
+const ANCHOR_W_HUB_CAP      = 5;
+const ANCHOR_W_FALLBACK     = 250;
+const ANCHOR_HIGH_DWELL_S   = 700;
+const ANCHOR_SCORE_THRESHOLD = 200;  // boundary is wide; any value 150-300 works
+
 function prepareAnchorData(flat) {
   // Count children per node_id to identify hub nodes
   const childCount = new Map();
@@ -23,6 +36,10 @@ function prepareAnchorData(flat) {
         visits: [],
         visitIndices: [],
         totalDwell: 0,
+        maxDwell: 0,
+        maxScroll: 0,
+        maxChildren: 0,
+        selectionEvaporated: 0,
         copyCount: 0,
         isAnchored: false,
         firstIdx: idx,
@@ -33,9 +50,10 @@ function prepareAnchorData(flat) {
     place.visits.push(node);
     place.visitIndices.push(idx);
     place.totalDwell += node.active_signals.dwell_time_seconds;
-    const isHub = (childCount.get(node.node_id) || 0) >= 3;
-    const isHighDwell = node.active_signals.dwell_time_seconds > 700;
-    if (node.is_anchored || isHub || isHighDwell) place.isAnchored = true;
+    place.maxDwell    = Math.max(place.maxDwell, node.active_signals.dwell_time_seconds);
+    place.maxScroll   = Math.max(place.maxScroll, node.active_signals.max_scroll_depth_percent ?? 0);
+    place.maxChildren = Math.max(place.maxChildren, childCount.get(node.node_id) || 0);
+    if (node.active_signals.selection_evaporated) place.selectionEvaporated++;
     if (node.active_signals.clipboard_copy_event) {
       place.copyCount++;
       place.hasCopy = true;
@@ -64,6 +82,23 @@ function prepareAnchorData(flat) {
 
   for (const [u, place] of byUrl) {
     place.pastesReceived = pastesReceived[u] || 0;
+  }
+
+  // ---- inferred anchors ----
+  // Multi-signal scoring. Each place earns points from: active dwell
+  // (gated by scroll), copies, pastes received, near-copies, hub structure,
+  // and a fallback for under-instrumented sources (apps with no scroll/copy signal).
+  // Weights tuned in scripts/test-anchor-equivalence.js.
+  for (const place of byUrl.values()) {
+    const activeDwell = place.maxDwell * (place.maxScroll / 100);
+    const hubBonus    = Math.min(ANCHOR_W_HUB_CAP, Math.max(0, place.maxChildren - 2)) * ANCHOR_W_HUB_PER_CHILD;
+    const fallback    = (place.maxDwell > ANCHOR_HIGH_DWELL_S) ? ANCHOR_W_FALLBACK : 0;
+    place.anchorScore = ANCHOR_W_DWELL_ACTIVE * activeDwell
+                      + ANCHOR_W_COPY         * place.copyCount
+                      + ANCHOR_W_PASTE        * place.pastesReceived
+                      + ANCHOR_W_SEL_EVAP     * place.selectionEvaporated
+                      + hubBonus + fallback;
+    place.isAnchored  = place.anchorScore >= ANCHOR_SCORE_THRESHOLD;
   }
 
   const anchors = [];
