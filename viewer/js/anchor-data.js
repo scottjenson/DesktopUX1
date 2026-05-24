@@ -132,6 +132,21 @@ function assignSatellitesToAnchors(anchors, satellites, flat) {
       if (chosen) buckets.get(chosen.url).push(sat);
       // If no anchor ancestor found, sat is an orphan and excluded from the view
     }
+
+    // Tag satellites whose visits have a child node pointing to an anchor
+    for (const sat of satellites) {
+      for (const visit of sat.visits) {
+        for (const node of flat) {
+          if (node.parent_node_id !== visit.node_id) continue;
+          const childUrl = normUrl(node.url);
+          if (anchorByUrl.has(childUrl) && childUrl !== normUrl(visit.url)) {
+            sat.destinationAnchor = anchorByUrl.get(childUrl);
+            break;
+          }
+        }
+        if (sat.destinationAnchor) break;
+      }
+    }
   } else {
     // Fallback: chronological
     for (const sat of satellites) {

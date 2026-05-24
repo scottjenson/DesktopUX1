@@ -98,6 +98,15 @@ function computeAnchorLayout(flat) {
   for (const a of anchors) {
     const sats = buckets.get(a.url) || [];
     sats.forEach((sat, i) => {
+      // Satellites with a destination anchor get placed toward that anchor
+      if (sat.destinationAnchor) {
+        const dest = sat.destinationAnchor;
+        sat._angle = Math.atan2(dest.cy - a.cy, dest.cx - a.cx);
+        const ringDist = a.r + SATELLITE_RING;
+        sat.cx = a.cx + Math.cos(sat._angle) * ringDist;
+        sat.cy = a.cy + Math.sin(sat._angle) * ringDist;
+        return;
+      }
       const half = i % 2 === 0 ? 'top' : 'bottom';
       const idxInHalf = Math.floor(i / 2);
       const topCount = Math.ceil(sats.length / 2);
@@ -137,6 +146,7 @@ function computeAnchorLayout(flat) {
         url: sat.url, page_title: sat.page_title,
         visitCount: sat.visits.length, totalDwell: sat.totalDwell,
         copyCount: sat.copyCount, pasteCount: sat.pastesReceived,
+        hasDestLink: !!sat.destinationAnchor,
       });
     }
   }
@@ -479,13 +489,60 @@ function _hoverSettle(anchorPos, anchorW, anchorUrl, sats, allEdgeData, satWidth
       ? { nx:  e.nx, ny:  e.ny }   // outgoing: direction toward other anchor
       : { nx: -e.nx, ny: -e.ny }); // incoming: direction back toward source
 
+  // Compute target angles for dest-link sats first
+  const destInfo = sats.map(sat => sat.destinationAnchor
+    ? Math.atan2(sat.destinationAnchor.cy - acy, sat.destinationAnchor.cx - acx)
+    : null);
+
+  // Gap-distribution seeding: dest-link sats claim their target angles as fixed dividers.
+  // Non-dest sats fill the arcs between them, distributed proportionally to arc size.
+  // This avoids dest-link sats having to push through a crowd to reach their angle.
+  const seatedAngles = new Array(sats.length);
+  const destIndices = destInfo.map((a, i) => a !== null ? i : -1).filter(i => i >= 0);
+  const nonDestIndices = destInfo.map((a, i) => a === null ? i : -1).filter(i => i >= 0);
+
+  if (destIndices.length === 0) {
+    // No dest-link sats: even distribution as before
+    nonDestIndices.forEach((idx, k) => {
+      seatedAngles[idx] = (k / sats.length) * 2 * Math.PI;
+    });
+  } else {
+    // Seat dest-link sats at their target angles
+    destIndices.forEach(i => { seatedAngles[i] = destInfo[i]; });
+
+    // Sort dest angles ascending in [-π, π] to form the dividers
+    const sortedDest = [...destIndices].sort((a, b) => destInfo[a] - destInfo[b]);
+    const dividerAngles = sortedDest.map(i => destInfo[i]);
+
+    // Compute arc sizes between consecutive dividers (wrapping around)
+    const arcs = [];
+    for (let k = 0; k < dividerAngles.length; k++) {
+      const start = dividerAngles[k];
+      const end   = dividerAngles[(k + 1) % dividerAngles.length];
+      let size = end - start;
+      if (size <= 0) size += 2 * Math.PI;
+      arcs.push({ start, size });
+    }
+
+    // Put ALL non-dest sats in the single largest arc — the small arcs between
+    // dest-link sats stay empty as buffer space, keeping dest-link sats unoccluded.
+    const biggestArc = arcs.reduce((a, b) => a.size > b.size ? a : b);
+    nonDestIndices.forEach((idx, j) => {
+      const t = (j + 1) / (nonDestIndices.length + 1);
+      seatedAngles[idx] = biggestArc.start + t * biggestArc.size;
+    });
+  }
+
   const nodes = sats.map((sat, i) => {
     const sw  = satWidths?.get(sat.url) ?? sat.r * NODE_W_RATIO;
     const hw  = sw / 2;
-    const angle  = (i / sats.length) * 2 * Math.PI;
-    const startR = anchorHW + hw + 10;
+    // Dest-link sats have a fixed target angle; the tether keeps them locked there.
+    const targetAngle = destInfo[i];
+    const angle  = seatedAngles[i];
+    // Seed dest-link sats further out so they're on their outer ring from frame 1
+    const startR = anchorHW + hw + (targetAngle !== null ? 90 : 10);
     return { url: sat.url, x: acx + Math.cos(angle) * startR, y: acy + Math.sin(angle) * startR,
-             hw, vx: 0, vy: 0 };
+             hw, vx: 0, vy: 0, targetAngle };
   });
 
   function forceAnchorClear(alpha) {
@@ -531,13 +588,48 @@ function _hoverSettle(anchorPos, anchorW, anchorUrl, sats, allEdgeData, satWidth
   }
 
   const avgSatHW = nodes.length ? nodes.reduce((s, n) => s + n.hw, 0) / nodes.length : anchorHW;
-  const targetR  = anchorHW + avgSatHW + 30;
+  const innerR   = anchorHW + avgSatHW + 30;
+  const outerR   = anchorHW + avgSatHW + 110;  // Dest-link sats sit on this outer ring
+  // Each node gets its own target radius
+  nodes.forEach(n => { n.targetR = n.targetAngle !== null ? outerR : innerR; });
+
+  // Per-node radial force: pulls each sat to its own targetR. Replaces d3.forceRadial
+  // (which uses a single radius) so dest-link sats can sit on an outer ring.
+  function forcePerNodeRadial(alpha) {
+    for (const n of nodes) {
+      const dx = n.x - acx, dy = n.y - acy;
+      const dist = Math.hypot(dx, dy) || 1;
+      const delta = n.targetR - dist;
+      const f = delta / dist * alpha * 0.4;
+      n.vx += dx * f; n.vy += dy * f;
+    }
+  }
+
+  // Angular tether: pulls dest-link sats back toward their targetAngle. Force is applied
+  // tangentially (perpendicular to the radial direction) so it doesn't fight the radial force.
+  function forceAngularTether(alpha) {
+    for (const n of nodes) {
+      if (n.targetAngle === null) continue;
+      const dx = n.x - acx, dy = n.y - acy;
+      const dist = Math.hypot(dx, dy) || 1;
+      const currentAngle = Math.atan2(dy, dx);
+      let delta = n.targetAngle - currentAngle;
+      // wrap to [-π, π]
+      while (delta >  Math.PI) delta -= 2 * Math.PI;
+      while (delta < -Math.PI) delta += 2 * Math.PI;
+      // Tangent direction at this point (perpendicular to radial, CCW)
+      const tx = -dy / dist, ty = dx / dist;
+      const f = delta * alpha * dist * 0.4;
+      n.vx += tx * f; n.vy += ty * f;
+    }
+  }
 
   const sim = d3.forceSimulation(nodes)
     .force('collide', d3.forceCollide(d => d.hw + 8).strength(0.9).iterations(4))
-    .force('radial',  d3.forceRadial(targetR, acx, acy).strength(0.4))
+    .force('radial',  forcePerNodeRadial)
     .force('anchorClear', forceAnchorClear)
     .force('edgeCone', forceEdgeCone)
+    .force('angularTether', forceAngularTether)
     .alphaDecay(0.04)
     .stop();
 
@@ -615,10 +707,11 @@ function setupAnchorHover(flat, anchors, buckets) {
         const { sat, sw } = _hoverElements[i];
         const sr = sat.r, sh = sr * NODE_H_RATIO;
         const cc = (sat.pastesReceived > 0) ? ' paste' : (sat.copyCount > 0) ? ' copy' : '';
+        const destClass = sat.destinationAnchor ? ' dest-link' : '';
         const { labelText, metaText } = satInfo.get(sat.url) || {};
 
         const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        rect.setAttribute('class', 'node' + cc);
+        rect.setAttribute('class', 'node' + cc + destClass);
         rect.setAttribute('width', sw); rect.setAttribute('height', sh);
         rect.setAttribute('rx', sr * NODE_RX_RATIO);
         overlay.appendChild(rect);
