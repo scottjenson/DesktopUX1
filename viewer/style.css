@@ -76,7 +76,7 @@ svg { display: block; width: 100%; height: 100%; }
 /* ── Unified node component ─────────────────────────────────────────────── */
 .node {
   fill: var(--node-bg);
-  stroke: var(--node-border);
+  stroke: var(--ink-dim);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
@@ -124,13 +124,13 @@ svg { display: block; width: 100%; height: 100%; }
 }
 
 .node-label {
-  fill: var(--ink-dim);
+  fill: var(--ink);
   font-family: 'Inter', sans-serif;
   pointer-events: none;
 }
 
 .node-meta {
-  fill: var(--ink-dim);
+  fill: var(--ink);
   font-family: 'Inter', sans-serif;
   text-anchor: middle;
   dominant-baseline: central;

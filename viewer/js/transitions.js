@@ -163,6 +163,19 @@ function transitionToTree(flat, root) {
   const toView  = _targetView(bounds);
   let fromSnap, fromView, fromEdgeOp;
 
+  // Hide tree labels until the nodes have settled in place — otherwise the
+  // labels appear instantly at the start of the transition while nodes are
+  // still mid-animation, which reads as visual noise.
+  function _zeroLabelOpacities() {
+    for (const id of tLayout.keys()) {
+      const reg = nodeRegistry.get(id);
+      if (!reg) continue;
+      reg.label.setAttribute('opacity', 0);
+      if (reg.meta)  reg.meta.setAttribute('opacity', 0);
+      if (reg.meta2) reg.meta2.setAttribute('opacity', 0);
+    }
+  }
+
   runPhases([
     {
       duration: 420,
@@ -171,15 +184,31 @@ function transitionToTree(flat, root) {
         fromSnap   = _prepareNodeTween(tLayout);
         fromView   = _snapshotView();
         fromEdgeOp = _edgesOpacity();
+        _zeroLabelOpacities();
       },
       onFrame(t, et) {
         _applyNodeFrame(fromSnap, tLayout, et);
         _applyViewFrame(fromView, toView, et);
         _applyEdgesFrame(fromEdgeOp, 0, et);
+        // _applyNodeFrame re-syncs label opacity to node opacity each frame;
+        // hold them at 0 so they only appear during the dedicated fade phase.
+        _zeroLabelOpacities();
       },
       onComplete() {
         renderTreeEdges(root);
         document.getElementById('edges').setAttribute('opacity', '0');
+      },
+    },
+    {
+      duration: 250,
+      onFrame(t, et) {
+        for (const id of tLayout.keys()) {
+          const reg = nodeRegistry.get(id);
+          if (!reg) continue;
+          reg.label.setAttribute('opacity', et);
+          if (reg.meta)  reg.meta.setAttribute('opacity', et);
+          if (reg.meta2) reg.meta2.setAttribute('opacity', et);
+        }
       },
     },
     {
