@@ -52,6 +52,7 @@ function analyze(flat) {
         totalDwell: 0,
         maxDwell: 0,
         copies: 0,
+        pastesReceived: 0,
         scrollDepths: [],
         maxChildren: 0,
         transitionTypes: new Set(),
@@ -62,24 +63,12 @@ function analyze(flat) {
     place.visits++;
     place.totalDwell += node.active_signals.dwell_time_seconds;
     place.maxDwell    = Math.max(place.maxDwell, node.active_signals.dwell_time_seconds);
-    if (node.active_signals.clipboard_copy_event) place.copies++;
+    if (node.active_signals.clipboard_event === 'copy')  place.copies++;
+    if (node.active_signals.clipboard_event === 'paste') place.pastesReceived++;
     place.scrollDepths.push(node.active_signals.max_scroll_depth_percent ?? 0);
     place.maxChildren = Math.max(place.maxChildren, childCount.get(node.node_id) || 0);
     if (node.transition_type) place.transitionTypes.add(node.transition_type);
   });
-
-  // Infer pastes received: each copy event lands on the next-visited KEEP instance
-  const pastesByUrl = new Map();
-  flat.forEach((node, i) => {
-    if (!node.active_signals.clipboard_copy_event) return;
-    for (let j = i + 1; j < flat.length; j++) {
-      if (normUrl(flat[j].url) === 'KEEP') {
-        pastesByUrl.set('KEEP', (pastesByUrl.get('KEEP') || 0) + 1);
-        break;
-      }
-    }
-  });
-  for (const [url, p] of byUrl) p.pastesReceived = pastesByUrl.get(url) || 0;
 
   return byUrl;
 }

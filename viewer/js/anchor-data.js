@@ -39,6 +39,7 @@ function prepareAnchorData(flat) {
         maxScroll: 0,
         maxChildren: 0,
         copyCount: 0,
+        pastesReceived: 0,
         isAnchored: false,
         firstIdx: idx,
         hasCopy: false,
@@ -51,35 +52,13 @@ function prepareAnchorData(flat) {
     place.maxDwell    = Math.max(place.maxDwell, node.active_signals.dwell_time_seconds);
     place.maxScroll   = Math.max(place.maxScroll, node.active_signals.max_scroll_depth_percent ?? 0);
     place.maxChildren = Math.max(place.maxChildren, childCount.get(node.node_id) || 0);
-    if (node.active_signals.clipboard_copy_event) {
+    if (node.active_signals.clipboard_event === 'copy') {
       place.copyCount++;
       place.hasCopy = true;
+    } else if (node.active_signals.clipboard_event === 'paste') {
+      place.pastesReceived++;
     }
   });
-
-  // ---- inferred pastes ----
-  // TODO: revisit when JSON capture format includes explicit paste events.
-  // Inference rule: each copy event lands on the next-visited Keep instance.
-  // (In this dataset every copy resolves cleanly to Keep. With multiple paste
-  // destinations this rule would need to be revised — better to capture pastes.)
-  const pastesReceived = {};
-  for (const [u] of byUrl) pastesReceived[u] = 0;
-
-  flat.forEach((node, i) => {
-    if (!node.active_signals.clipboard_copy_event) return;
-    const sourceUrl = normUrl(node.url);
-    for (let j = i + 1; j < flat.length; j++) {
-      const candidateUrl = normUrl(flat[j].url);
-      if (candidateUrl === 'KEEP' && candidateUrl !== sourceUrl) {
-        pastesReceived[candidateUrl] = (pastesReceived[candidateUrl] || 0) + 1;
-        break;
-      }
-    }
-  });
-
-  for (const [u, place] of byUrl) {
-    place.pastesReceived = pastesReceived[u] || 0;
-  }
 
   // ---- inferred anchors ----
   // Multi-signal scoring. Each place earns points from: active dwell
@@ -207,7 +186,7 @@ function computeAnchorEdges(flat, anchorUrls) {
     if (!edges.has(key)) edges.set(key, { count: 0, carrierCount: 0 });
     const rec = edges.get(key);
     rec.count++;
-    if (parent.active_signals.clipboard_copy_event) rec.carrierCount++;
+    if (parent.active_signals.clipboard_event === 'copy') rec.carrierCount++;
   }
   return edges;
 }
