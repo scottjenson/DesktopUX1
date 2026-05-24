@@ -433,7 +433,7 @@ function _cancelHover() {
     const t  = Math.min((now - t0) / DISAPPEAR_MS, 1);
     const et = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
     const op = 1 - et;
-    for (const { sat, rect, label, meta, line, sw } of elemSnap) {
+    for (const { sat, rect, label, meta, line, outEdge, sw } of elemSnap) {
       if (!rect) continue;
       const from = fromPos.get(sat.url) || { cx: acx, cy: acy };
       const cx = _lerp(from.cx, acx, et), cy = _lerp(from.cy, acy, et);
@@ -450,10 +450,12 @@ function _cancelHover() {
       line.setAttribute('x1', p0.x); line.setAttribute('y1', p0.y);
       line.setAttribute('x2', p1.x); line.setAttribute('y2', p1.y);
       line.setAttribute('opacity', op * 0.7);
+      // Edges fade out faster than satellites: fully gone by 40% of the animation
+      if (outEdge) outEdge.setAttribute('opacity', Math.max(0, 1 - et / 0.4));
     }
     if (t < 1) requestAnimationFrame(disappearTick);
-    else for (const { rect, label, meta, line } of elemSnap)
-      rect?.remove(), label?.remove(), meta?.remove(), line?.remove();
+    else for (const { rect, label, meta, line, outEdge } of elemSnap)
+      rect?.remove(), label?.remove(), meta?.remove(), line?.remove(), outEdge?.remove();
   }
   requestAnimationFrame(disappearTick);
 }
@@ -700,7 +702,23 @@ function setupAnchorHover(flat, anchors, buckets) {
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         line.setAttribute('class', 'satellite-link');
         overlay.appendChild(line);
-        _hoverElements.push({ sat, line, rect: null, label: null, meta: null, sw: satInfo.get(sat.url)?.sw ?? sat.r * NODE_W_RATIO });
+
+        // Outbound edge to destination anchor (same style as anchor-to-anchor edges)
+        let outEdge = null, destPos = null;
+        if (sat.destinationAnchor) {
+          const destNodeId = sat.destinationAnchor.visits[0]?.node_id;
+          destPos = destNodeId ? currentPositions.get(destNodeId) : null;
+          if (destPos) {
+            outEdge = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            outEdge.setAttribute('class', 'anchor-edge');
+            outEdge.setAttribute('stroke-width', 2);
+            outEdge.setAttribute('marker-end', 'url(#arrowhead-accent)');
+            outEdge.setAttribute('opacity', 0);
+            overlay.appendChild(outEdge);
+          }
+        }
+
+        _hoverElements.push({ sat, line, outEdge, destPos, rect: null, label: null, meta: null, sw: satInfo.get(sat.url)?.sw ?? sat.r * NODE_W_RATIO });
       }
       // Rects + labels on top
       for (let i = 0; i < _hoverElements.length; i++) {
@@ -750,7 +768,7 @@ function setupAnchorHover(flat, anchors, buckets) {
         const xform = s < 1 ? `translate(${acx} ${acy}) scale(${s}) translate(${-acx} ${-acy})` : '';
         for (const c of anchorCircles) c.setAttribute('transform', xform);
 
-        for (const { sat, rect, label, meta, line, sw } of _hoverElements) {
+        for (const { sat, rect, label, meta, line, outEdge, destPos, sw } of _hoverElements) {
           const tgt = settled.get(sat.url);
           if (!tgt || !rect) continue;
           const cx = _lerp(acx, tgt.cx, et), cy = _lerp(acy, tgt.cy, et);
@@ -770,6 +788,18 @@ function setupAnchorHover(flat, anchors, buckets) {
           line.setAttribute('x1', p0.x); line.setAttribute('y1', p0.y);
           line.setAttribute('x2', p1.x); line.setAttribute('y2', p1.y);
           line.setAttribute('opacity', op * 0.7);
+
+          // Outbound edge: satellite → destination anchor. Fade in during the second
+          // half of the appear animation so satellites arrive first, then edges draw.
+          if (outEdge && destPos) {
+            const destHW = destPos.w ? destPos.w / 2 : destPos.r * NODE_W_RATIO / 2;
+            const outAng = Math.atan2(destPos.cy - cy, destPos.cx - cx);
+            const e0 = rectEdgePoint(cx, cy, sr, outAng, 0, sw / 2);
+            const e1 = rectEdgePoint(destPos.cx, destPos.cy, destPos.r, outAng + Math.PI, 2, destHW);
+            outEdge.setAttribute('d', `M ${e0.x} ${e0.y} L ${e1.x} ${e1.y}`);
+            const edgeOp = Math.max(0, (et - 0.5) * 2);  // 0 until halfway, then 0→1
+            outEdge.setAttribute('opacity', edgeOp);
+          }
 
           _hoverLivePos.set(sat.url, { cx, cy });
         }
