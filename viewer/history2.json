@@ -10,9 +10,7 @@
       "dwell_time_seconds": 120,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 3,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_02",
@@ -25,9 +23,7 @@
       "dwell_time_seconds": 8,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 3,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_03",
@@ -40,9 +36,7 @@
       "dwell_time_seconds": 12,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 3,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_04",
@@ -55,9 +49,7 @@
       "dwell_time_seconds": 340,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 2,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_05",
@@ -70,9 +62,7 @@
       "dwell_time_seconds": 5,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 3,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_06",
@@ -85,9 +75,7 @@
       "dwell_time_seconds": 450,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 2,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_07",
@@ -100,9 +88,7 @@
       "dwell_time_seconds": 15,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 3,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_08",
@@ -115,9 +101,7 @@
       "dwell_time_seconds": 620,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 2,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_09",
@@ -130,9 +114,7 @@
       "dwell_time_seconds": 45,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 3,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_10",
@@ -145,9 +127,7 @@
       "dwell_time_seconds": 40,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 3,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_11",
@@ -160,9 +140,7 @@
       "dwell_time_seconds": 310,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 1,
-    "render_mode": "interactive_dom",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_12",
@@ -175,9 +153,7 @@
       "dwell_time_seconds": 12,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 3,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_13",
@@ -190,9 +166,7 @@
       "dwell_time_seconds": 180,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 2,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_14",
@@ -205,9 +179,7 @@
       "dwell_time_seconds": 540,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 2,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_15",
@@ -220,9 +192,7 @@
       "dwell_time_seconds": 35,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 3,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_16",
@@ -235,9 +205,7 @@
       "dwell_time_seconds": 420,
       "clipboard_copy_event": true
     },
-    "granularity_tier": 1,
-    "render_mode": "interactive_dom",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_17",
@@ -250,9 +218,7 @@
       "dwell_time_seconds": 25,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 3,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_18",
@@ -265,9 +231,7 @@
       "dwell_time_seconds": 380,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 2,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_19",
@@ -280,9 +244,7 @@
       "dwell_time_seconds": 15,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 3,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_20",
@@ -295,9 +257,7 @@
       "dwell_time_seconds": 25,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 3,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_21",
@@ -310,9 +270,7 @@
       "dwell_time_seconds": 290,
       "clipboard_copy_event": true
     },
-    "granularity_tier": 1,
-    "render_mode": "interactive_dom",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_22",
@@ -325,9 +283,7 @@
       "dwell_time_seconds": 140,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 2,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_23",
@@ -340,9 +296,7 @@
       "dwell_time_seconds": 80,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 3,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_24",
@@ -355,9 +309,7 @@
       "dwell_time_seconds": 900,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 3,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_25",
@@ -370,9 +322,7 @@
       "dwell_time_seconds": 4,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 1,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_26",
@@ -385,9 +335,7 @@
       "dwell_time_seconds": 3,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 1,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_27",
@@ -400,9 +348,7 @@
       "dwell_time_seconds": 60,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 1,
-    "render_mode": "interactive_dom",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_28",
@@ -415,9 +361,7 @@
       "dwell_time_seconds": 210,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 2,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_29",
@@ -430,9 +374,7 @@
       "dwell_time_seconds": 8,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 3,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_30",
@@ -445,9 +387,7 @@
       "dwell_time_seconds": 45,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 3,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_31",
@@ -460,9 +400,7 @@
       "dwell_time_seconds": 5,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 3,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_32",
@@ -475,9 +413,7 @@
       "dwell_time_seconds": 60,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 2,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_33",
@@ -490,9 +426,7 @@
       "dwell_time_seconds": 45,
       "clipboard_copy_event": true
     },
-    "granularity_tier": 1,
-    "render_mode": "interactive_dom",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_34",
@@ -505,9 +439,7 @@
       "dwell_time_seconds": 25,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 1,
-    "render_mode": "interactive_dom",
-    "texture_state": "live_canvas"
+    "snapshot": null
   },
   {
     "node_id": "node_35",
@@ -520,9 +452,7 @@
       "dwell_time_seconds": 40,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 1,
-    "render_mode": "interactive_dom",
-    "texture_state": "live_canvas"
+    "snapshot": null
   },
   {
     "node_id": "node_36",
@@ -535,9 +465,7 @@
       "dwell_time_seconds": 15,
       "clipboard_copy_event": true
     },
-    "granularity_tier": 1,
-    "render_mode": "interactive_dom",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_37",
@@ -550,9 +478,7 @@
       "dwell_time_seconds": 20,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 1,
-    "render_mode": "interactive_dom",
-    "texture_state": "live_canvas"
+    "snapshot": null
   },
   {
     "node_id": "node_38",
@@ -565,9 +491,7 @@
       "dwell_time_seconds": 22,
       "clipboard_copy_event": true
     },
-    "granularity_tier": 1,
-    "render_mode": "interactive_dom",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_39",
@@ -580,9 +504,7 @@
       "dwell_time_seconds": 18,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 1,
-    "render_mode": "interactive_dom",
-    "texture_state": "live_canvas"
+    "snapshot": null
   },
   {
     "node_id": "node_40",
@@ -595,9 +517,7 @@
       "dwell_time_seconds": 25,
       "clipboard_copy_event": true
     },
-    "granularity_tier": 1,
-    "render_mode": "interactive_dom",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_41",
@@ -610,9 +530,7 @@
       "dwell_time_seconds": 35,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 1,
-    "render_mode": "interactive_dom",
-    "texture_state": "live_canvas"
+    "snapshot": null
   },
   {
     "node_id": "node_42",
@@ -625,9 +543,7 @@
       "dwell_time_seconds": 180,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 2,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_43",
@@ -640,9 +556,7 @@
       "dwell_time_seconds": 12,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 3,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_44",
@@ -655,9 +569,7 @@
       "dwell_time_seconds": 10,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 3,
-    "render_mode": "spatial_mesh",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_45",
@@ -670,9 +582,7 @@
       "dwell_time_seconds": 45,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 1,
-    "render_mode": "interactive_dom",
-    "texture_state": "live_canvas"
+    "snapshot": null
   },
   {
     "node_id": "node_46",
@@ -685,9 +595,7 @@
       "dwell_time_seconds": 12,
       "clipboard_copy_event": true
     },
-    "granularity_tier": 1,
-    "render_mode": "interactive_dom",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_47",
@@ -700,9 +608,7 @@
       "dwell_time_seconds": 15,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 1,
-    "render_mode": "interactive_dom",
-    "texture_state": "live_canvas"
+    "snapshot": null
   },
   {
     "node_id": "node_48",
@@ -715,9 +621,7 @@
       "dwell_time_seconds": 14,
       "clipboard_copy_event": true
     },
-    "granularity_tier": 1,
-    "render_mode": "interactive_dom",
-    "texture_state": "static_snapshot"
+    "snapshot": null
   },
   {
     "node_id": "node_49",
@@ -730,9 +634,7 @@
       "dwell_time_seconds": 80,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 1,
-    "render_mode": "interactive_dom",
-    "texture_state": "live_canvas"
+    "snapshot": null
   },
   {
     "node_id": "node_50",
@@ -745,8 +647,6 @@
       "dwell_time_seconds": 120,
       "clipboard_copy_event": false
     },
-    "granularity_tier": 1,
-    "render_mode": "interactive_dom",
-    "texture_state": "live_canvas"
+    "snapshot": null
   }
 ]
