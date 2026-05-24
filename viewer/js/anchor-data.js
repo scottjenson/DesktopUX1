@@ -11,7 +11,6 @@ const MIN_ANCHOR_META_PX = 80;
 const ANCHOR_W_DWELL_ACTIVE = 0.3;
 const ANCHOR_W_COPY         = 150;
 const ANCHOR_W_PASTE        = 80;
-const ANCHOR_W_SEL_EVAP     = 20;
 const ANCHOR_W_HUB_PER_CHILD = 120;
 const ANCHOR_W_HUB_CAP      = 5;
 const ANCHOR_W_FALLBACK     = 250;
@@ -39,7 +38,6 @@ function prepareAnchorData(flat) {
         maxDwell: 0,
         maxScroll: 0,
         maxChildren: 0,
-        selectionEvaporated: 0,
         copyCount: 0,
         isAnchored: false,
         firstIdx: idx,
@@ -53,7 +51,6 @@ function prepareAnchorData(flat) {
     place.maxDwell    = Math.max(place.maxDwell, node.active_signals.dwell_time_seconds);
     place.maxScroll   = Math.max(place.maxScroll, node.active_signals.max_scroll_depth_percent ?? 0);
     place.maxChildren = Math.max(place.maxChildren, childCount.get(node.node_id) || 0);
-    if (node.active_signals.selection_evaporated) place.selectionEvaporated++;
     if (node.active_signals.clipboard_copy_event) {
       place.copyCount++;
       place.hasCopy = true;
@@ -86,8 +83,8 @@ function prepareAnchorData(flat) {
 
   // ---- inferred anchors ----
   // Multi-signal scoring. Each place earns points from: active dwell
-  // (gated by scroll), copies, pastes received, near-copies, hub structure,
-  // and a fallback for under-instrumented sources (apps with no scroll/copy signal).
+  // (gated by scroll), copies, pastes received, hub structure, and a
+  // fallback for under-instrumented sources (apps with no scroll/copy signal).
   // Weights tuned in scripts/test-anchor-equivalence.js.
   for (const place of byUrl.values()) {
     const activeDwell = place.maxDwell * (place.maxScroll / 100);
@@ -96,7 +93,6 @@ function prepareAnchorData(flat) {
     place.anchorScore = ANCHOR_W_DWELL_ACTIVE * activeDwell
                       + ANCHOR_W_COPY         * place.copyCount
                       + ANCHOR_W_PASTE        * place.pastesReceived
-                      + ANCHOR_W_SEL_EVAP     * place.selectionEvaporated
                       + hubBonus + fallback;
     place.isAnchored  = place.anchorScore >= ANCHOR_SCORE_THRESHOLD;
   }
@@ -216,6 +212,3 @@ function computeAnchorEdges(flat, anchorUrls) {
   return edges;
 }
 
-function findInterruption(flat) {
-  return flat.find(n => n.abandonment_state === 'interruption_gap');
-}

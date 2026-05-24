@@ -52,7 +52,6 @@ function analyze(flat) {
         totalDwell: 0,
         maxDwell: 0,
         copies: 0,
-        selectionEvaporated: 0,
         scrollDepths: [],
         maxChildren: 0,
         transitionTypes: new Set(),
@@ -64,7 +63,6 @@ function analyze(flat) {
     place.totalDwell += node.active_signals.dwell_time_seconds;
     place.maxDwell    = Math.max(place.maxDwell, node.active_signals.dwell_time_seconds);
     if (node.active_signals.clipboard_copy_event) place.copies++;
-    if (node.active_signals.selection_evaporated) place.selectionEvaporated++;
     place.scrollDepths.push(node.active_signals.max_scroll_depth_percent ?? 0);
     place.maxChildren = Math.max(place.maxChildren, childCount.get(node.node_id) || 0);
     if (node.transition_type) place.transitionTypes.add(node.transition_type);
@@ -95,7 +93,6 @@ const rows = [...places.values()].map(p => ({
   totalDwell: p.totalDwell,
   maxDwell: p.maxDwell,
   copies: p.copies,
-  selectionEvaporated: p.selectionEvaporated,
   avgScroll: p.scrollDepths.length ? Math.round(p.scrollDepths.reduce((a,b)=>a+b,0) / p.scrollDepths.length) : 0,
   maxScroll: Math.max(0, ...p.scrollDepths),
   maxChildren: p.maxChildren,
@@ -104,7 +101,7 @@ const rows = [...places.values()].map(p => ({
 }));
 
 function fmtSignals(r) {
-  return `visits=${r.visits} dwell=${r.totalDwell}s(max ${r.maxDwell}s) copies=${r.copies} selEvap=${r.selectionEvaporated} scroll=avg${r.avgScroll}%/max${r.maxScroll}% maxChildren=${r.maxChildren} pastes=${r.pastesReceived} trans=[${r.transitions}]`;
+  return `visits=${r.visits} dwell=${r.totalDwell}s(max ${r.maxDwell}s) copies=${r.copies} scroll=avg${r.avgScroll}%/max${r.maxScroll}% maxChildren=${r.maxChildren} pastes=${r.pastesReceived} trans=[${r.transitions}]`;
 }
 
 console.log('='.repeat(78));
@@ -123,7 +120,6 @@ console.log();
 const W_DWELL_ACTIVE = 0.3;   // dwell_seconds × (max_scroll_pct/100) — heavily discounted
 const W_COPY         = 150;   // each copy is a strong active-engagement signal
 const W_PASTE        = 80;    // paste destination = strong sink signal
-const W_SEL_EVAP     = 20;    // near-copy
 const W_HUB_PER_CHILD = 120;  // bonus per child beyond 2 — structural pivots matter
 const W_HUB_CAP      = 5;     // cap on children for hub bonus
 const W_FALLBACK     = 250;   // dwell-only fallback for under-instrumented sources (Slack)
@@ -137,9 +133,8 @@ function score(r) {
     total: W_DWELL_ACTIVE * activeDwell
          + W_COPY  * r.copies
          + W_PASTE * r.pastesReceived
-         + W_SEL_EVAP * r.selectionEvaporated
          + hub_bonus + fallback,
-    parts: { activeDwell, copies: r.copies, pastes: r.pastesReceived, selEvap: r.selectionEvaporated, hub_bonus, fallback },
+    parts: { activeDwell, copies: r.copies, pastes: r.pastesReceived, hub_bonus, fallback },
   };
 }
 
@@ -150,7 +145,7 @@ const scored = rows.map(r => ({ ...r, score: score(r) }))
 
 const inferredAnchors = new Set(scored.filter(r => r.score.total >= SCORE_THRESHOLD).map(r => r.url));
 
-console.log(`Weights: activeDwell×${W_DWELL_ACTIVE}  copy×${W_COPY}  paste×${W_PASTE}  selEvap×${W_SEL_EVAP}  hub×${W_HUB_PER_CHILD}/child(cap ${W_HUB_CAP})  fallback×${W_FALLBACK}(>${HIGH_DWELL_S}s dwell)`);
+console.log(`Weights: activeDwell×${W_DWELL_ACTIVE}  copy×${W_COPY}  paste×${W_PASTE}  hub×${W_HUB_PER_CHILD}/child(cap ${W_HUB_CAP})  fallback×${W_FALLBACK}(>${HIGH_DWELL_S}s dwell)`);
 console.log(`Threshold: score >= ${SCORE_THRESHOLD}`);
 console.log();
 
@@ -159,7 +154,6 @@ function fmtScoreParts(p) {
   if (p.activeDwell > 0) parts.push(`active=${Math.round(p.activeDwell)}`);
   if (p.copies)          parts.push(`copy×${p.copies}=${W_COPY * p.copies}`);
   if (p.pastes)          parts.push(`paste×${p.pastes}=${W_PASTE * p.pastes}`);
-  if (p.selEvap)         parts.push(`selEvap×${p.selEvap}=${W_SEL_EVAP * p.selEvap}`);
   if (p.hub_bonus)       parts.push(`hub=${p.hub_bonus}`);
   if (p.fallback)        parts.push(`fallback=${p.fallback}`);
   return parts.join(' + ');
