@@ -4,12 +4,12 @@
     "parent_node_id": null,
     "url": "https://google.com/search?q=best+mid-drive+commuter+ebike",
     "page_title": "best mid-drive commuter ebike - Google Search",
-    "transition_type": "google_search",
     "active_signals": {
       "max_scroll_depth_percent": 45,
       "dwell_time_seconds": 120,
       "clipboard_event": null
     },
+    "transition_type": "google_search",
     "snapshot": null
   },
   {
@@ -17,12 +17,12 @@
     "parent_node_id": "node_01",
     "url": "https://bikeradar.com/top-10-ebikes",
     "page_title": "Top 10 Commuter E-bikes",
-    "transition_type": "clicked_link",
     "active_signals": {
       "max_scroll_depth_percent": 15,
       "dwell_time_seconds": 8,
       "clipboard_event": null
     },
+    "transition_type": "clicked_link",
     "snapshot": null
   },
   {
@@ -30,12 +30,12 @@
     "parent_node_id": "node_01",
     "url": "https://electrek.co/best-commuter-ebikes/",
     "page_title": "Electrek's Best Commuters",
-    "transition_type": "opened_in_new_tab",
     "active_signals": {
       "max_scroll_depth_percent": 20,
       "dwell_time_seconds": 12,
       "clipboard_event": null
     },
+    "transition_type": "opened_in_new_tab",
     "snapshot": null
   },
   {
@@ -43,12 +43,12 @@
     "parent_node_id": "node_01",
     "url": "https://reddit.com/r/ebikes/comments/commuter_recs",
     "page_title": "Commuter recommendations? : r/ebikes",
-    "transition_type": "opened_in_new_tab",
     "active_signals": {
       "max_scroll_depth_percent": 85,
       "dwell_time_seconds": 340,
       "clipboard_event": null
     },
+    "transition_type": "opened_in_new_tab",
     "snapshot": null
   },
   {
@@ -56,12 +56,12 @@
     "parent_node_id": "node_04",
     "url": "https://reddit.com/user/ebikeguru",
     "page_title": "ebikeguru - User Profile",
-    "transition_type": "clicked_link",
     "active_signals": {
       "max_scroll_depth_percent": 10,
       "dwell_time_seconds": 5,
       "clipboard_event": null
     },
+    "transition_type": "clicked_link",
     "snapshot": null
   },
   {
@@ -69,12 +69,12 @@
     "parent_node_id": "node_04",
     "url": "https://reddit.com/r/ebikes/comments/bosch_vs_yamaha",
     "page_title": "Bosch vs Yamaha motors",
-    "transition_type": "opened_in_new_tab",
     "active_signals": {
       "max_scroll_depth_percent": 90,
       "dwell_time_seconds": 450,
       "clipboard_event": null
     },
+    "transition_type": "opened_in_new_tab",
     "snapshot": null
   },
   {
@@ -82,12 +82,12 @@
     "parent_node_id": "node_06",
     "url": "https://bosch-ebike.com/en/",
     "page_title": "Bosch eBike Systems",
-    "transition_type": "clicked_link",
     "active_signals": {
       "max_scroll_depth_percent": 5,
       "dwell_time_seconds": 15,
       "clipboard_event": null
     },
+    "transition_type": "clicked_link",
     "snapshot": null
   },
   {
@@ -95,12 +95,12 @@
     "parent_node_id": "node_06",
     "url": "https://youtube.com/watch?v=bosch_teardown",
     "page_title": "Bosch CX Motor Teardown",
-    "transition_type": "opened_in_new_tab",
     "active_signals": {
       "max_scroll_depth_percent": 10,
       "dwell_time_seconds": 620,
       "clipboard_event": null
     },
+    "transition_type": "opened_in_new_tab",
     "snapshot": null
   },
   {
@@ -108,12 +108,12 @@
     "parent_node_id": "node_08",
     "url": "https://youtube.com/watch?v=yamaha_review",
     "page_title": "Yamaha PW-ST Review",
-    "transition_type": "clicked_link",
     "active_signals": {
       "max_scroll_depth_percent": 10,
       "dwell_time_seconds": 45,
       "clipboard_event": null
     },
+    "transition_type": "clicked_link",
     "snapshot": null
   },
   {
@@ -121,12 +121,12 @@
     "parent_node_id": "node_01",
     "url": "https://google.com/search?q=Specialized+Turbo+Vado",
     "page_title": "Specialized Turbo Vado - Google Search",
-    "transition_type": "google_search",
     "active_signals": {
       "max_scroll_depth_percent": 60,
       "dwell_time_seconds": 40,
       "clipboard_event": null
     },
+    "transition_type": "google_search",
     "snapshot": null
   },
   {
@@ -134,12 +134,12 @@
     "parent_node_id": "node_10",
     "url": "https://specialized.com/us/en/turbo-vado-4",
     "page_title": "Turbo Vado 4.0 | Specialized",
-    "transition_type": "clicked_link",
     "active_signals": {
       "max_scroll_depth_percent": 100,
       "dwell_time_seconds": 310,
       "clipboard_event": null
     },
+    "transition_type": "clicked_link",
     "snapshot": null
   },
   {
@@ -147,12 +147,12 @@
     "parent_node_id": "node_11",
     "url": "https://specialized.com/us/en/store-locator",
     "page_title": "Find a Retailer",
-    "transition_type": "clicked_link",
     "active_signals": {
       "max_scroll_depth_percent": 0,
       "dwell_time_seconds": 12,
       "clipboard_event": null
     },
+    "transition_type": "clicked_link",
     "snapshot": null
   },
   {
@@ -160,12 +160,12 @@
     "parent_node_id": "node_11",
     "url": "https://reddit.com/r/specialized/comments/vado_issues",
     "page_title": "Vado 4.0 long term reliability?",
-    "transition_type": "opened_in_new_tab",
     "active_signals": {
       "max_scroll_depth_percent": 75,
       "dwell_time_seconds": 180,
       "clipboard_event": null
     },
+    "transition_type": "opened_in_new_tab",
     "snapshot": null
   },
   {
@@ -173,12 +173,12 @@
     "parent_node_id": "node_10",
     "url": "https://youtube.com/watch?v=vado_4_review",
     "page_title": "Specialized Turbo Vado 4.0 Review",
-    "transition_type": "opened_in_new_tab",
     "active_signals": {
       "max_scroll_depth_percent": 10,
       "dwell_time_seconds": 540,
       "clipboard_event": null
     },
+    "transition_type": "opened_in_new_tab",
     "snapshot": null
   },
   {
@@ -186,12 +186,12 @@
     "parent_node_id": "node_01",
     "url": "https://google.com/search?q=Trek+Allant+7",
     "page_title": "Trek Allant+ 7 - Google Search",
-    "transition_type": "google_search",
     "active_signals": {
       "max_scroll_depth_percent": 50,
       "dwell_time_seconds": 35,
       "clipboard_event": null
     },
+    "transition_type": "google_search",
     "snapshot": null
   },
   {
@@ -199,12 +199,12 @@
     "parent_node_id": "node_15",
     "url": "https://trekbikes.com/us/en_US/allant-plus-7",
     "page_title": "Allant+ 7 | Trek Bikes",
-    "transition_type": "clicked_link",
     "active_signals": {
       "max_scroll_depth_percent": 95,
       "dwell_time_seconds": 420,
       "clipboard_event": "copy"
     },
+    "transition_type": "clicked_link",
     "snapshot": null
   },
   {
@@ -212,12 +212,12 @@
     "parent_node_id": "node_16",
     "url": "https://trekbikes.com/us/en_US/sizing",
     "page_title": "Bike Sizing Guide",
-    "transition_type": "opened_in_new_tab",
     "active_signals": {
       "max_scroll_depth_percent": 30,
       "dwell_time_seconds": 25,
       "clipboard_event": null
     },
+    "transition_type": "opened_in_new_tab",
     "snapshot": null
   },
   {
@@ -225,12 +225,12 @@
     "parent_node_id": "node_16",
     "url": "https://electricbikereview.com/trek/allant-plus-7/",
     "page_title": "Trek Allant+ 7 Review | EBR",
-    "transition_type": "opened_in_new_tab",
     "active_signals": {
       "max_scroll_depth_percent": 100,
       "dwell_time_seconds": 380,
       "clipboard_event": null
     },
+    "transition_type": "opened_in_new_tab",
     "snapshot": null
   },
   {
@@ -238,12 +238,12 @@
     "parent_node_id": "node_18",
     "url": "https://electricbikereview.com/forums/",
     "page_title": "EBR Forums",
-    "transition_type": "clicked_link",
     "active_signals": {
       "max_scroll_depth_percent": 10,
       "dwell_time_seconds": 15,
       "clipboard_event": null
     },
+    "transition_type": "clicked_link",
     "snapshot": null
   },
   {
@@ -251,12 +251,12 @@
     "parent_node_id": "node_15",
     "url": "https://google.com/search?q=Gazelle+Ultimate+C8",
     "page_title": "Gazelle Ultimate C8 - Google Search",
-    "transition_type": "google_search",
     "active_signals": {
       "max_scroll_depth_percent": 45,
       "dwell_time_seconds": 25,
       "clipboard_event": null
     },
+    "transition_type": "google_search",
     "snapshot": null
   },
   {
@@ -264,12 +264,12 @@
     "parent_node_id": "node_20",
     "url": "https://gazellebikes.com/en-us/ultimate-c8",
     "page_title": "Ultimate C8 HMB | Gazelle",
-    "transition_type": "clicked_link",
     "active_signals": {
       "max_scroll_depth_percent": 88,
       "dwell_time_seconds": 290,
       "clipboard_event": "copy"
     },
+    "transition_type": "clicked_link",
     "snapshot": null
   },
   {
@@ -277,12 +277,12 @@
     "parent_node_id": "node_21",
     "url": "https://gazellebikes.com/en-us/belt-drive",
     "page_title": "Why Belt Drive?",
-    "transition_type": "opened_in_new_tab",
     "active_signals": {
       "max_scroll_depth_percent": 60,
       "dwell_time_seconds": 140,
       "clipboard_event": null
     },
+    "transition_type": "opened_in_new_tab",
     "snapshot": null
   },
   {
@@ -290,12 +290,12 @@
     "parent_node_id": "node_20",
     "url": "https://youtube.com/watch?v=gazelle_c8",
     "page_title": "Gazelle Ultimate C8 Commute Test",
-    "transition_type": "opened_in_new_tab",
     "active_signals": {
       "max_scroll_depth_percent": 5,
       "dwell_time_seconds": 80,
       "clipboard_event": null
     },
+    "transition_type": "opened_in_new_tab",
     "snapshot": null
   },
   {
@@ -303,12 +303,12 @@
     "parent_node_id": "node_23",
     "url": "slack://app",
     "page_title": "Slack - Work Workspace",
-    "transition_type": "app_switch",
     "active_signals": {
       "max_scroll_depth_percent": 100,
       "dwell_time_seconds": 900,
       "clipboard_event": null
     },
+    "transition_type": "app_switch",
     "snapshot": null
   },
   {
@@ -316,12 +316,12 @@
     "parent_node_id": "node_24",
     "url": "https://gazellebikes.com/en-us/ultimate-c8",
     "page_title": "Ultimate C8 HMB | Gazelle",
-    "transition_type": "tab_switch",
     "active_signals": {
       "max_scroll_depth_percent": 88,
       "dwell_time_seconds": 4,
       "clipboard_event": null
     },
+    "transition_type": "tab_switch",
     "snapshot": null
   },
   {
@@ -329,12 +329,12 @@
     "parent_node_id": "node_25",
     "url": "https://trekbikes.com/us/en_US/allant-plus-7",
     "page_title": "Allant+ 7 | Trek Bikes",
-    "transition_type": "tab_switch",
     "active_signals": {
       "max_scroll_depth_percent": 95,
       "dwell_time_seconds": 3,
       "clipboard_event": null
     },
+    "transition_type": "tab_switch",
     "snapshot": null
   },
   {
@@ -342,12 +342,12 @@
     "parent_node_id": "node_26",
     "url": "https://specialized.com/us/en/turbo-vado-4",
     "page_title": "Turbo Vado 4.0 | Specialized",
-    "transition_type": "tab_switch",
     "active_signals": {
       "max_scroll_depth_percent": 100,
       "dwell_time_seconds": 60,
       "clipboard_event": null
     },
+    "transition_type": "tab_switch",
     "snapshot": null
   },
   {
@@ -355,12 +355,12 @@
     "parent_node_id": "node_27",
     "url": "https://reddit.com/r/ebikes/comments/vado_vs_allant",
     "page_title": "Vado 4.0 vs Allant+ 7?",
-    "transition_type": "opened_in_new_tab",
     "active_signals": {
       "max_scroll_depth_percent": 100,
       "dwell_time_seconds": 210,
       "clipboard_event": null
     },
+    "transition_type": "opened_in_new_tab",
     "snapshot": null
   },
   {
@@ -368,12 +368,12 @@
     "parent_node_id": "node_28",
     "url": "https://reddit.com/user/commuter_guy",
     "page_title": "commuter_guy - User Profile",
-    "transition_type": "clicked_link",
     "active_signals": {
       "max_scroll_depth_percent": 20,
       "dwell_time_seconds": 8,
       "clipboard_event": null
     },
+    "transition_type": "clicked_link",
     "snapshot": null
   },
   {
@@ -381,12 +381,12 @@
     "parent_node_id": "node_28",
     "url": "https://electricbikereview.com/compare",
     "page_title": "EBR Comparison Tool",
-    "transition_type": "opened_in_new_tab",
     "active_signals": {
       "max_scroll_depth_percent": 15,
       "dwell_time_seconds": 45,
       "clipboard_event": null
     },
+    "transition_type": "opened_in_new_tab",
     "snapshot": null
   },
   {
@@ -394,12 +394,12 @@
     "parent_node_id": "node_30",
     "url": "https://electricbikereview.com/compare/error",
     "page_title": "Models not found",
-    "transition_type": "form_submit",
     "active_signals": {
       "max_scroll_depth_percent": 0,
       "dwell_time_seconds": 5,
       "clipboard_event": null
     },
+    "transition_type": "form_submit",
     "snapshot": null
   },
   {
@@ -407,12 +407,12 @@
     "parent_node_id": "node_27",
     "url": "https://specialized.com/us/en/turbo-vado-4/geometry",
     "page_title": "Vado Geometry",
-    "transition_type": "clicked_link",
     "active_signals": {
       "max_scroll_depth_percent": 80,
       "dwell_time_seconds": 60,
       "clipboard_event": null
     },
+    "transition_type": "clicked_link",
     "snapshot": null
   },
   {
@@ -420,12 +420,12 @@
     "parent_node_id": "node_27",
     "url": "https://trekbikes.com/us/en_US/allant-plus-7",
     "page_title": "Allant+ 7 | Trek Bikes",
-    "transition_type": "tab_switch",
     "active_signals": {
       "max_scroll_depth_percent": 95,
       "dwell_time_seconds": 45,
       "clipboard_event": "copy"
     },
+    "transition_type": "tab_switch",
     "snapshot": null
   },
   {
@@ -433,12 +433,12 @@
     "parent_node_id": "node_33",
     "url": "https://keep.google.com/",
     "page_title": "Google Keep",
-    "transition_type": "opened_app",
     "active_signals": {
       "max_scroll_depth_percent": 0,
       "dwell_time_seconds": 25,
       "clipboard_event": "paste"
     },
+    "transition_type": "opened_app",
     "snapshot": null
   },
   {
@@ -446,12 +446,12 @@
     "parent_node_id": "node_34",
     "url": "https://keep.google.com/u/0/#NOTE/ebike",
     "page_title": "E-Bike Shortlist",
-    "transition_type": "in_app_action",
     "active_signals": {
       "max_scroll_depth_percent": 0,
       "dwell_time_seconds": 40,
       "clipboard_event": null
     },
+    "transition_type": "in_app_action",
     "snapshot": null
   },
   {
@@ -459,12 +459,12 @@
     "parent_node_id": "node_35",
     "url": "https://trekbikes.com/us/en_US/allant-plus-7",
     "page_title": "Allant+ 7 | Trek Bikes",
-    "transition_type": "tab_switch",
     "active_signals": {
       "max_scroll_depth_percent": 95,
       "dwell_time_seconds": 15,
       "clipboard_event": "copy"
     },
+    "transition_type": "tab_switch",
     "snapshot": null
   },
   {
@@ -472,12 +472,12 @@
     "parent_node_id": "node_36",
     "url": "https://keep.google.com/u/0/#NOTE/ebike",
     "page_title": "E-Bike Shortlist",
-    "transition_type": "tab_switch",
     "active_signals": {
       "max_scroll_depth_percent": 0,
       "dwell_time_seconds": 20,
       "clipboard_event": "paste"
     },
+    "transition_type": "tab_switch",
     "snapshot": null
   },
   {
@@ -485,12 +485,12 @@
     "parent_node_id": "node_37",
     "url": "https://specialized.com/us/en/turbo-vado-4",
     "page_title": "Turbo Vado 4.0 | Specialized",
-    "transition_type": "tab_switch",
     "active_signals": {
       "max_scroll_depth_percent": 100,
       "dwell_time_seconds": 22,
       "clipboard_event": "copy"
     },
+    "transition_type": "tab_switch",
     "snapshot": null
   },
   {
@@ -498,12 +498,12 @@
     "parent_node_id": "node_38",
     "url": "https://keep.google.com/u/0/#NOTE/ebike",
     "page_title": "E-Bike Shortlist",
-    "transition_type": "tab_switch",
     "active_signals": {
       "max_scroll_depth_percent": 0,
       "dwell_time_seconds": 18,
       "clipboard_event": "paste"
     },
+    "transition_type": "tab_switch",
     "snapshot": null
   },
   {
@@ -511,12 +511,12 @@
     "parent_node_id": "node_39",
     "url": "https://gazellebikes.com/en-us/ultimate-c8",
     "page_title": "Ultimate C8 HMB | Gazelle",
-    "transition_type": "tab_switch",
     "active_signals": {
       "max_scroll_depth_percent": 88,
       "dwell_time_seconds": 25,
       "clipboard_event": "copy"
     },
+    "transition_type": "tab_switch",
     "snapshot": null
   },
   {
@@ -524,12 +524,12 @@
     "parent_node_id": "node_40",
     "url": "https://keep.google.com/u/0/#NOTE/ebike",
     "page_title": "E-Bike Shortlist",
-    "transition_type": "tab_switch",
     "active_signals": {
       "max_scroll_depth_percent": 0,
       "dwell_time_seconds": 35,
       "clipboard_event": "paste"
     },
+    "transition_type": "tab_switch",
     "snapshot": null
   },
   {
@@ -537,12 +537,12 @@
     "parent_node_id": "node_41",
     "url": "https://youtube.com/watch?v=ebike_locks",
     "page_title": "Best Ebike Locks 2026",
-    "transition_type": "opened_in_new_tab",
     "active_signals": {
       "max_scroll_depth_percent": 10,
       "dwell_time_seconds": 180,
       "clipboard_event": null
     },
+    "transition_type": "opened_in_new_tab",
     "snapshot": null
   },
   {
@@ -550,12 +550,12 @@
     "parent_node_id": "node_42",
     "url": "https://amazon.com/kryptonite-fahgettaboudit",
     "page_title": "Kryptonite New York Lock",
-    "transition_type": "clicked_link",
     "active_signals": {
       "max_scroll_depth_percent": 40,
       "dwell_time_seconds": 12,
       "clipboard_event": null
     },
+    "transition_type": "clicked_link",
     "snapshot": null
   },
   {
@@ -563,12 +563,12 @@
     "parent_node_id": "node_41",
     "url": "https://reddit.com/r/ebikes/comments/locks",
     "page_title": "Lock recommendations?",
-    "transition_type": "opened_in_new_tab",
     "active_signals": {
       "max_scroll_depth_percent": 15,
       "dwell_time_seconds": 10,
       "clipboard_event": null
     },
+    "transition_type": "opened_in_new_tab",
     "snapshot": null
   },
   {
@@ -576,12 +576,12 @@
     "parent_node_id": "node_41",
     "url": "https://keep.google.com/u/0/#NOTE/ebike",
     "page_title": "E-Bike Shortlist",
-    "transition_type": "tab_switch",
     "active_signals": {
       "max_scroll_depth_percent": 0,
       "dwell_time_seconds": 45,
       "clipboard_event": null
     },
+    "transition_type": "tab_switch",
     "snapshot": null
   },
   {
@@ -589,12 +589,12 @@
     "parent_node_id": "node_45",
     "url": "https://trekbikes.com/us/en_US/allant-plus-7",
     "page_title": "Allant+ 7 | Trek Bikes",
-    "transition_type": "tab_switch",
     "active_signals": {
       "max_scroll_depth_percent": 95,
       "dwell_time_seconds": 12,
       "clipboard_event": "copy"
     },
+    "transition_type": "tab_switch",
     "snapshot": null
   },
   {
@@ -602,12 +602,12 @@
     "parent_node_id": "node_46",
     "url": "https://keep.google.com/u/0/#NOTE/ebike",
     "page_title": "E-Bike Shortlist",
-    "transition_type": "tab_switch",
     "active_signals": {
       "max_scroll_depth_percent": 0,
       "dwell_time_seconds": 15,
       "clipboard_event": "paste"
     },
+    "transition_type": "tab_switch",
     "snapshot": null
   },
   {
@@ -615,12 +615,12 @@
     "parent_node_id": "node_47",
     "url": "https://specialized.com/us/en/turbo-vado-4",
     "page_title": "Turbo Vado 4.0 | Specialized",
-    "transition_type": "tab_switch",
     "active_signals": {
       "max_scroll_depth_percent": 100,
       "dwell_time_seconds": 14,
       "clipboard_event": "copy"
     },
+    "transition_type": "tab_switch",
     "snapshot": null
   },
   {
@@ -628,12 +628,12 @@
     "parent_node_id": "node_48",
     "url": "https://keep.google.com/u/0/#NOTE/ebike",
     "page_title": "E-Bike Shortlist",
-    "transition_type": "tab_switch",
     "active_signals": {
       "max_scroll_depth_percent": 0,
       "dwell_time_seconds": 80,
       "clipboard_event": "paste"
     },
+    "transition_type": "tab_switch",
     "snapshot": null
   },
   {
@@ -641,12 +641,12 @@
     "parent_node_id": "node_49",
     "url": "https://keep.google.com/u/0/#NOTE/ebike",
     "page_title": "E-Bike Shortlist",
-    "transition_type": "in_app_action",
     "active_signals": {
       "max_scroll_depth_percent": 100,
       "dwell_time_seconds": 120,
       "clipboard_event": null
     },
+    "transition_type": "in_app_action",
     "snapshot": null
   }
 ]

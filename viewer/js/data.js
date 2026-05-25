@@ -17,8 +17,8 @@ fetch('./history2.json')
   })
   .catch(err => {
     console.error('Failed to load history data:', err);
-    const nodeCount = document.getElementById('node-count');
-    if (nodeCount) {
-      nodeCount.textContent = 'error loading data: ' + err.message;
+    const viewName = document.getElementById('view-name');
+    if (viewName) {
+      viewName.textContent = 'error loading data: ' + err.message;
     }
   });

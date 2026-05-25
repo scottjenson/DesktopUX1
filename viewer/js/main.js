@@ -13,15 +13,24 @@ function _ensureTree() {
   }
 }
 
+function _hideTelemetry() {
+  document.getElementById('telemetry-layer').setAttribute('opacity', 0);
+  document.getElementById('edges').setAttribute('opacity', 1);
+  document.getElementById('bg-layer').setAttribute('opacity', 1);
+  document.getElementById('nodes').setAttribute('opacity', 1);
+  document.getElementById('satellite-overlay').setAttribute('opacity', 1);
+}
+
 function switchToHistory() {
   const prev = currentMode;
   currentMode = 'history';
   _updateViewUI('history');
   if (prev === 'anchor') teardownAnchorHover();
+  _hideTelemetry();
 
   // Use consistent rendering for all cases (initial + transitions)
-  if (prev === null) {
-    // Initial load: render directly with no animation
+  if (prev === null || prev === 'telemetry') {
+    // Initial load or coming out of empty placeholder: render directly
     applyLayout(computeHistoryLayout(HISTORY_DATA));
     document.getElementById('edges').innerHTML = '';
     fitToBounds(historyBounds(HISTORY_DATA));
@@ -38,9 +47,10 @@ function switchToTree() {
   currentMode = 'tree';
   _updateViewUI('tree');
   if (prev === 'anchor') teardownAnchorHover();
+  _hideTelemetry();
   _ensureTree();
 
-  if (prev === null) {
+  if (prev === null || prev === 'telemetry') {
     applyLayout(computeTreeLayout(HISTORY_DATA, cachedRoot));
     renderTreeEdges(cachedRoot);
     fitToBounds(treeBounds(cachedRoot));
@@ -57,9 +67,10 @@ function switchToAnchor() {
   const prev = currentMode;
   currentMode = 'anchor';
   _updateViewUI('anchor');
+  _hideTelemetry();
   _ensureTree();
 
-  if (prev === null) {
+  if (prev === null || prev === 'telemetry') {
     const { anchors, buckets, layout, bounds } = computeAnchorLayout(HISTORY_DATA);
     applyLayout(layout);
     renderAnchorEdgesAndBg(HISTORY_DATA);
@@ -77,24 +88,76 @@ function switchToAnchor() {
 }
 
 function _updateViewUI(mode) {
-  const labels = { history: 'history', tree: 'chronological tree', anchor: 'anchor constellation' };
+  const labels = { history: 'Simple History', telemetry: 'Telemetry', tree: 'Tree View', anchor: 'Anchor View' };
   document.getElementById('view-name').textContent = labels[mode];
-  document.getElementById('node-count').textContent = HISTORY_DATA.length;
   document.querySelectorAll('.view-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.view === mode);
   });
 }
 
-// Keyboard: 1 = history, 2 = tree, 3 = anchor
+// Build the telemetry text layer once: one <text> per line of the first record.
+// Returns the bounding box of the text block so the caller can fit-to-bounds.
+function _ensureTelemetryLayer() {
+  const layer = document.getElementById('telemetry-layer');
+  if (layer.childNodes.length > 0) return layer._bounds;
+
+  const lines = JSON.stringify(HISTORY_DATA[0], null, 2).split('\n');
+  const FONT_SIZE = 22;
+  const LINE_H    = FONT_SIZE * 1.5;
+  const CHAR_W    = FONT_SIZE * 0.6;  // approximation for monospace
+  const x0 = 0, y0 = 0;
+
+  lines.forEach((line, i) => {
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('class', 'telemetry-text');
+    t.setAttribute('x', x0);
+    t.setAttribute('y', y0 + i * LINE_H);
+    t.setAttribute('font-size', FONT_SIZE);
+    t.setAttribute('dominant-baseline', 'hanging');
+    t.textContent = line;
+    layer.appendChild(t);
+  });
+
+  const maxLen = lines.reduce((m, l) => Math.max(m, l.length), 0);
+  const bounds = {
+    minX: x0,
+    maxX: x0 + maxLen * CHAR_W,
+    minY: y0,
+    maxY: y0 + lines.length * LINE_H,
+  };
+  layer._bounds = bounds;
+  return bounds;
+}
+
+function switchToTelemetry() {
+  const prev = currentMode;
+  currentMode = 'telemetry';
+  _updateViewUI('telemetry');
+  if (prev === 'anchor') teardownAnchorHover();
+
+  // Hide every other content layer (edges, bg, all node children) en masse
+  document.getElementById('edges').setAttribute('opacity', 0);
+  document.getElementById('bg-layer').setAttribute('opacity', 0);
+  document.getElementById('nodes').setAttribute('opacity', 0);
+  document.getElementById('satellite-overlay').setAttribute('opacity', 0);
+
+  // Show the telemetry text and center on it
+  const bounds = _ensureTelemetryLayer();
+  document.getElementById('telemetry-layer').setAttribute('opacity', 1);
+  fitToBounds(bounds);
+}
+
+// Keyboard: 1 = history, 2 = telemetry, 3 = tree, 4 = anchor
 window.addEventListener('keydown', e => {
   if (e.key === '1') switchToHistory();
-  else if (e.key === '2') switchToTree();
-  else if (e.key === '3') switchToAnchor();
+  else if (e.key === '2') switchToTelemetry();
+  else if (e.key === '3') switchToTree();
+  else if (e.key === '4') switchToAnchor();
 });
 
 function init() {
   if (!HISTORY_DATA || !Array.isArray(HISTORY_DATA) || HISTORY_DATA.length === 0) {
-    document.getElementById('node-count').textContent = 'no data';
+    document.getElementById('view-name').textContent = 'no data';
     return;
   }
   initNodeRegistry(HISTORY_DATA);
@@ -104,6 +167,7 @@ function init() {
     btn.addEventListener('click', () => {
       const v = btn.dataset.view;
       if (v === 'history') switchToHistory();
+      else if (v === 'telemetry') switchToTelemetry();
       else if (v === 'tree') switchToTree();
       else if (v === 'anchor') switchToAnchor();
     });
@@ -137,7 +201,7 @@ function initWhenReady() {
     window._dataReadyCallback = initWhenReady;
     setTimeout(initWhenReady, 100);
   } else {
-    document.getElementById('node-count').textContent = 'data load timeout';
+    document.getElementById('view-name').textContent = 'data load timeout';
   }
 }
 

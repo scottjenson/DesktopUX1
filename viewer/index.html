@@ -15,14 +15,14 @@
 <div class="canvas-bg"></div>
 
 <header>
-  <span class="title">history tree</span>
+  <span class="title">Discovering User Intent</span>
   <div class="view-switcher">
-    <button class="view-btn" data-view="history">history</button>
-    <button class="view-btn" data-view="tree">tree</button>
-    <button class="view-btn" data-view="anchor">anchor</button>
+    <button class="view-btn" data-view="history">Simple History</button>
+    <button class="view-btn" data-view="telemetry">Telemetry</button>
+    <button class="view-btn" data-view="tree">Tree View</button>
+    <button class="view-btn" data-view="anchor">Anchor View</button>
   </div>
-  <span class="sub"><span id="view-name" class="active">history</span></span>
-  <span class="meta"><span id="node-count">—</span> nodes</span>
+  <span class="sub"><span id="view-name" class="active">Simple History</span></span>
 </header>
 
 <div id="stage">
@@ -43,6 +43,7 @@
       <g id="satellite-overlay"></g>
       <g id="nodes"></g>
       <g id="hover-targets"></g>
+      <g id="telemetry-layer" opacity="0"></g>
     </g>
   </svg>
 </div>
@@ -50,9 +51,10 @@
 <footer>
   <span>drag to pan</span>
   <span>scroll to zoom</span>
-  <span><kbd>1</kbd> history</span>
-  <span><kbd>2</kbd> tree</span>
-  <span><kbd>3</kbd> anchor</span>
+  <span><kbd>1</kbd> Simple History</span>
+  <span><kbd>2</kbd> Telemetry</span>
+  <span><kbd>3</kbd> Tree View</span>
+  <span><kbd>4</kbd> Anchor View</span>
   <span class="right">zoom <span id="zoom-readout">1.00×</span></span>
 </footer>
 
