@@ -62,18 +62,54 @@ function prepareAnchorData(flat) {
 
   // ---- inferred anchors ----
   // Multi-signal scoring. Each place earns points from: active dwell
-  // (gated by scroll), copies, pastes received, hub structure, and a
-  // fallback for under-instrumented sources (apps with no scroll/copy signal).
+  // (gated by scroll), copies, pastes received, hub structure (transitive
+  // descendant count — see below), and a fallback for under-instrumented
+  // sources (apps with no scroll/copy signal).
   // Weights tuned in scripts/test-anchor-equivalence.js.
-  for (const place of byUrl.values()) {
+  function _scorePlace(place, hubInput) {
     const activeDwell = place.maxDwell * (place.maxScroll / 100);
-    const hubBonus    = Math.min(ANCHOR_W_HUB_CAP, Math.max(0, place.maxChildren - 2)) * ANCHOR_W_HUB_PER_CHILD;
+    const hubBonus    = Math.min(ANCHOR_W_HUB_CAP, Math.max(0, hubInput - 2)) * ANCHOR_W_HUB_PER_CHILD;
     const fallback    = (place.maxDwell > ANCHOR_HIGH_DWELL_S) ? ANCHOR_W_FALLBACK : 0;
-    place.anchorScore = ANCHOR_W_DWELL_ACTIVE * activeDwell
-                      + ANCHOR_W_COPY         * place.copyCount
-                      + ANCHOR_W_PASTE        * place.pastesReceived
-                      + hubBonus + fallback;
+    return ANCHOR_W_DWELL_ACTIVE * activeDwell
+         + ANCHOR_W_COPY         * place.copyCount
+         + ANCHOR_W_PASTE        * place.pastesReceived
+         + hubBonus + fallback;
+  }
+
+  // First pass: score with direct-child count to determine the anchor set
+  for (const place of byUrl.values()) {
+    place.anchorScore = _scorePlace(place, place.maxChildren);
     place.isAnchored  = place.anchorScore >= ANCHOR_SCORE_THRESHOLD;
+  }
+
+  // Compute bucket size per anchor — number of non-anchor places whose
+  // nearest anchor ancestor is this one. Bigger gravitational clusters
+  // (Google Search has 13 descendants) get a stronger hub bonus.
+  const anchorUrlsByPlace = new Set([...byUrl.values()].filter(p => p.isAnchored).map(p => p.url));
+  const nodeByIdLocal = new Map(flat.map(n => [n.node_id, n]));
+  const bucketSize = new Map();
+  for (const u of anchorUrlsByPlace) bucketSize.set(u, 0);
+  for (const place of byUrl.values()) {
+    if (place.isAnchored) continue;
+    let anchorUrl = null;
+    outer:
+    for (const idx of place.visitIndices) {
+      let cur = flat[idx].parent_node_id ? nodeByIdLocal.get(flat[idx].parent_node_id) : null;
+      while (cur) {
+        const u = normUrl(cur.url);
+        if (anchorUrlsByPlace.has(u)) { anchorUrl = u; break outer; }
+        cur = cur.parent_node_id ? nodeByIdLocal.get(cur.parent_node_id) : null;
+      }
+    }
+    if (anchorUrl) bucketSize.set(anchorUrl, bucketSize.get(anchorUrl) + 1);
+  }
+
+  // Second pass: re-score anchors using bucketSize for the hub input.
+  // Non-anchors keep their direct-child score (which kept them out of the set).
+  for (const place of byUrl.values()) {
+    if (!place.isAnchored) continue;
+    const hubInput = Math.max(place.maxChildren, bucketSize.get(place.url) || 0);
+    place.anchorScore = _scorePlace(place, hubInput);
   }
 
   const anchors = [];
@@ -84,10 +120,9 @@ function prepareAnchorData(flat) {
   }
   anchors.sort((a, b) => a.firstIdx - b.firstIdx);
 
-  // score = sqrt(dwell) + 8*visits + 12*copies + 8*pastes_received
-  anchors.forEach(a => {
-    a.score = Math.sqrt(a.totalDwell) + 8 * a.visits.length + 12 * a.copyCount + 8 * a.pastesReceived;
-  });
+  // Anchor radius uses the same multi-signal score as the inference decision,
+  // so a place that barely passes the threshold also looks visually small.
+  anchors.forEach(a => { a.score = a.anchorScore; });
 
   // center of mass for vertical positioning
   const total = flat.length;

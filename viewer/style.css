@@ -74,6 +74,14 @@ footer .right { margin-left: auto; font-variant-numeric: tabular-nums; }
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   fill: var(--ink);
   white-space: pre;
+  pointer-events: none;  /* hover handled by the row rect behind it */
+}
+.telemetry-row {
+  fill: transparent;
+  cursor: default;
+}
+.telemetry-row:hover {
+  fill: #2a4660;
 }
 svg { display: block; width: 100%; height: 100%; }
 

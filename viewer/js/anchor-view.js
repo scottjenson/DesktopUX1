@@ -71,7 +71,7 @@ function computeAnchorLayout(flat) {
   const copyGap = LAYOUT_COPY_GAP;
 
   // Row 1: root and slack
-  if (rootAnchor) { rootAnchor.cx = centerX - LAYOUT_TOP_OFFSET; rootAnchor.cy = topY; }
+  if (rootAnchor) { rootAnchor.cx = centerX - LAYOUT_TOP_OFFSET - 120; rootAnchor.cy = topY - 80; }
   if (slackAnchor) { slackAnchor.cx = centerX + LAYOUT_TOP_OFFSET; slackAnchor.cy = topY; }
 
   // Row 2: copy nodes (Vado, Trek, Gazelle) centered horizontally
@@ -355,7 +355,7 @@ function renderAnchorEdgesAndBg(flat) {
   const centerX = LAYOUT_CENTER_X;
   const copyGap = LAYOUT_COPY_GAP;
 
-  if (rootAnchor) { rootAnchor.cx = centerX - LAYOUT_TOP_OFFSET; rootAnchor.cy = topY; }
+  if (rootAnchor) { rootAnchor.cx = centerX - LAYOUT_TOP_OFFSET - 120; rootAnchor.cy = topY - 80; }
   if (slackAnchor) { slackAnchor.cx = centerX + LAYOUT_TOP_OFFSET; slackAnchor.cy = topY; }
   if (copyAnchors.length > 0) {
     const copyStartX = centerX - (copyAnchors.length - 1) * copyGap / 2;

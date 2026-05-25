@@ -107,7 +107,21 @@ function _ensureTelemetryLayer() {
   const CHAR_W    = FONT_SIZE * 0.6;  // approximation for monospace
   const x0 = 0, y0 = 0;
 
+  const maxLen = lines.reduce((m, l) => Math.max(m, l.length), 0);
+  const rowW = maxLen * CHAR_W;
+
   lines.forEach((line, i) => {
+    // Background hover rect (behind the text). Shifted up by half the leading
+    // so the text sits visually centered inside the highlight band.
+    const rectYOffset = -(LINE_H - FONT_SIZE) / 2;
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('class', 'telemetry-row');
+    rect.setAttribute('x', x0);
+    rect.setAttribute('y', y0 + i * LINE_H + rectYOffset);
+    rect.setAttribute('width', rowW);
+    rect.setAttribute('height', LINE_H);
+    layer.appendChild(rect);
+
     const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     t.setAttribute('class', 'telemetry-text');
     t.setAttribute('x', x0);
@@ -118,7 +132,6 @@ function _ensureTelemetryLayer() {
     layer.appendChild(t);
   });
 
-  const maxLen = lines.reduce((m, l) => Math.max(m, l.length), 0);
   const bounds = {
     minX: x0,
     maxX: x0 + maxLen * CHAR_W,
