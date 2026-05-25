@@ -88,8 +88,6 @@ function switchToAnchor() {
 }
 
 function _updateViewUI(mode) {
-  const labels = { history: 'Simple History', telemetry: 'Telemetry', tree: 'Tree View', anchor: 'Anchor View' };
-  document.getElementById('view-name').textContent = labels[mode];
   document.querySelectorAll('.view-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.view === mode);
   });
@@ -170,7 +168,7 @@ window.addEventListener('keydown', e => {
 
 function init() {
   if (!HISTORY_DATA || !Array.isArray(HISTORY_DATA) || HISTORY_DATA.length === 0) {
-    document.getElementById('view-name').textContent = 'no data';
+    document.getElementById('title').textContent = 'no data';
     return;
   }
   initNodeRegistry(HISTORY_DATA);
@@ -214,7 +212,7 @@ function initWhenReady() {
     window._dataReadyCallback = initWhenReady;
     setTimeout(initWhenReady, 100);
   } else {
-    document.getElementById('view-name').textContent = 'data load timeout';
+    document.getElementById('title').textContent = 'data load timeout';
   }
 }
 

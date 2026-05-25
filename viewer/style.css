@@ -45,8 +45,6 @@ header {
   z-index: 10;
 }
 header .title { font-family: 'Fraunces', Georgia, serif; font-weight: 500; font-size: 22px; color: var(--ink); }
-header .sub { color: var(--ink-dim); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; margin-left: auto; }
-header .sub .active { color: var(--accent); }
 
 footer {
   position: fixed; bottom: 0; left: 0; right: 0;
@@ -76,6 +74,7 @@ footer .right { margin-left: auto; font-variant-numeric: tabular-nums; }
   white-space: pre;
   pointer-events: none;  /* hover handled by the row rect behind it */
 }
+#telemetry-layer[opacity="0"] { pointer-events: none; }
 .telemetry-row {
   fill: transparent;
   cursor: default;
